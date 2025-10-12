@@ -86,54 +86,72 @@
       margin-left: 15px;
     }
 
-    .user-details {
-      display: flex;
-      flex-direction: column;
-    }
-
     .user-name {
       font-size: 16px;
       font-weight: 600;
       color: #2d3748;
-      margin-bottom: 4px;
     }
 
     .user-status {
-      font-size: 13px;
+      font-size: 12px;
       color: #718096;
+      margin-top: 4px;
     }
 
-    .online {
-      color: #48bb78;
-    }
-
-    .request-sent {
-      background: #f8f9fa;
-      color: #718096;
-      padding: 8px 16px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 500;
-      border: 1px solid #e2e8f0;
-    }
-
-    .send-request-btn {
-      background: linear-gradient(135deg, #25d366, #128c7e);
-      color: white;
-      border: none;
+    .request-btn, .cancel-btn, .friend-btn {
       padding: 10px 20px;
       border-radius: 20px;
       cursor: pointer;
       font-size: 14px;
       font-weight: 500;
       transition: all 0.3s ease;
-      box-shadow: 0 2px 8px rgba(37, 211, 102, 0.3);
+      text-decoration: none;
+      display: inline-block;
+      border: none;
     }
 
-    .send-request-btn:hover {
-      background: linear-gradient(135deg, #128c7e, #075e54);
+    .request-btn {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+    }
+
+    .request-btn:hover {
+      background: linear-gradient(135deg, #5a6fd8, #6b46c1);
       transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(37, 211, 102, 0.4);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    .cancel-btn {
+      background: linear-gradient(135deg, #f6ad55, #ed8936);
+      color: white;
+      box-shadow: 0 2px 8px rgba(246, 173, 85, 0.3);
+    }
+
+    .cancel-btn:hover {
+      background: linear-gradient(135deg, #ed8936, #dd6b20);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(246, 173, 85, 0.4);
+    }
+
+    .friend-btn {
+      background: linear-gradient(135deg, #48bb78, #38a169);
+      color: white;
+      box-shadow: 0 2px 8px rgba(72, 187, 120, 0.3);
+    }
+
+    .friend-btn:hover {
+      background: linear-gradient(135deg, #38a169, #2f855a);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+    }
+
+    .pending-badge {
+      background: #f6ad55;
+      color: white;
+      padding: 4px 12px;
+      border-radius: 15px;
+      font-size: 12px;
     }
 
     .navigation {
@@ -178,34 +196,6 @@
       margin-bottom: 10px;
     }
 
-    .empty-icon {
-      font-size: 48px;
-      margin-bottom: 20px;
-      opacity: 0.5;
-    }
-
-    .search-container {
-      padding: 20px;
-      background: #f8f9fa;
-      border-bottom: 1px solid #e2e8f0;
-    }
-
-    .search-input {
-      width: 100%;
-      padding: 12px 20px;
-      border: 2px solid #e2e8f0;
-      border-radius: 25px;
-      font-size: 14px;
-      outline: none;
-      transition: all 0.3s ease;
-      box-sizing: border-box;
-    }
-
-    .search-input:focus {
-      border-color: #075e54;
-      box-shadow: 0 0 0 3px rgba(7, 94, 84, 0.1);
-    }
-
     @media (max-width: 768px) {
       .container {
         margin: 0;
@@ -221,8 +211,7 @@
 
       .user-actions {
         width: 100%;
-        display: flex;
-        justify-content: center;
+        text-align: center;
       }
 
       .user-avatar {
@@ -241,53 +230,40 @@
         font-size: 13px;
       }
     }
-
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .user-item {
-      animation: fadeIn 0.4s ease-out;
-    }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
       <h1>👥 المستخدمون</h1>
-      <div class="users-count">إجمالي المستخدمين: <%= users.length %></div>
-    </div>
-
-    <div class="search-container">
-      <input type="text" class="search-input" placeholder="🔍 ابحث عن مستخدم..." id="searchInput">
+      <div class="users-count">عدد المستخدمين: <%= users.length %></div>
     </div>
 
     <% if (users.length > 0) { %>
-      <ul class="users-list" id="usersList">
+      <ul class="users-list">
         <% users.forEach(user => { %>
           <li class="user-item">
             <div class="user-info">
               <div class="user-avatar">
                 <%= user.username.charAt(0).toUpperCase() %>
               </div>
-              <div class="user-details">
+              <div>
                 <div class="user-name"><%= user.username %></div>
-                <div class="user-status online">● متصل الآن</div>
+                <div class="user-status">● متصل الآن</div>
               </div>
             </div>
             <div class="user-actions">
-              <% if(sentIds.includes(user._id.toString())){ %>
-                <span class="request-sent">✅ تم إرسال الطلب</span>
+              <% if (friendIds.includes(user._id.toString())) { %>
+                <span class="friend-btn">✓ صديق</span>
+              <% } else if (sentIds.includes(user._id.toString())) { %>
+                <form action="/friend-cancel/<%= user._id %>" method="POST" style="display:inline">
+                  <button type="submit" class="cancel-btn">✗ إلغاء الطلب</button>
+                </form>
+              <% } else if (receivedIds.includes(user._id.toString())) { %>
+                <span class="pending-badge">طلب ورد</span>
               <% } else { %>
                 <form action="/friend-request/<%= user._id %>" method="POST" style="display:inline">
-                  <button type="submit" class="send-request-btn">➕ إرسال طلب صداقة</button>
+                  <button type="submit" class="request-btn">+ إرسال طلب</button>
                 </form>
               <% } %>
             </div>
@@ -296,55 +272,17 @@
       </ul>
     <% } else { %>
       <div class="empty-state">
-        <div class="empty-icon">👥</div>
-        <h3>لا يوجد مستخدمون</h3>
-        <p>كن أول من ينضم إلى التطبيق!</p>
+        <h3>لا يوجد مستخدمون آخرون</h3>
+        <p>سيظهر هنا المستخدمون المسجلون في التطبيق</p>
       </div>
     <% } %>
 
     <div class="navigation">
       <a href="/friends" class="nav-link">👥 أصدقائي</a>
-      <a href="/chat" class="nav-link">💬 الشات العام</a>
       <a href="/friend-requests" class="nav-link">📩 طلبات الصداقة</a>
+      <a href="/chat" class="nav-link">💬 الشات العام</a>
       <a href="/logout" class="nav-link">🚪 تسجيل الخروج</a>
     </div>
   </div>
-
-  <script>
-    // وظيفة البحث في المستخدمين
-    document.getElementById('searchInput').addEventListener('input', function(e) {
-      const searchTerm = e.target.value.toLowerCase();
-      const userItems = document.querySelectorAll('.user-item');
-      
-      userItems.forEach(item => {
-        const userName = item.querySelector('.user-name').textContent.toLowerCase();
-        if (userName.includes(searchTerm)) {
-          item.style.display = 'flex';
-        } else {
-          item.style.display = 'none';
-        }
-      });
-    });
-
-    // تأثير عند إرسال طلب الصداقة
-    document.querySelectorAll('.send-request-btn').forEach(button => {
-      button.addEventListener('click', function(e) {
-        const button = this;
-        const originalText = button.textContent;
-        
-        // تأثير مؤقت
-        button.textContent = 'جاري الإرسال...';
-        button.style.opacity = '0.7';
-        button.disabled = true;
-        
-        setTimeout(() => {
-          button.textContent = '✅ تم الإرسال';
-          button.style.background = '#f8f9fa';
-          button.style.color = '#718096';
-          button.style.boxShadow = 'none';
-        }, 1000);
-      });
-    });
-  </script>
 </body>
 </html>
