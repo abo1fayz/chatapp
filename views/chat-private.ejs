@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الدردشة مع <%= friendUsername %></title>
+
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  background-color: #e6e6e6;
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #e6e6e6;
+  position: relative;
+}
+
+/* Header Styles */
+.chat-header {
+  background-color: #075e54;
+  padding: 15px 20px;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  position: relative;
+  z-index: 10;
+}
+
+.header-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  flex: 1;
+}
+
+.back-button {
+  color: white;
+  text-decoration: none;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.back-button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.friend-name {
+  font-size: 1.1em;
+  font-weight: 600;
+  color: white;
+}
+
+/* Messages Container */
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%23075e54' fill-opacity='0.03' fill-rule='evenodd'/%3E%3C/svg%3E");
+}
+
+.messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+}
+
+.messages::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+}
+
+/* Message Styles */
+.message {
+  display: flex;
+  margin-bottom: 8px;
+  align-items: flex-end;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.message .bubble {
+  max-width: 65%;
+  padding: 12px 16px;
+  border-radius: 20px;
+  position: relative;
+  word-wrap: break-word;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+.message.self {
+  justify-content: flex-end;
+}
+
+.message.self .bubble {
+  background-color: #dcf8c6;
+  border-bottom-right-radius: 5px;
+  margin-left: 60px;
+}
+
+.message.other .bubble {
+  background-color: #ffffff;
+  border-bottom-left-radius: 5px;
+  margin-right: 60px;
+}
+
+.message .avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  margin: 0 8px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+/* Input Form Styles */
+#chatForm {
+  display: flex;
+  padding: 15px;
+  background-color: #f0f0f0;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid #ddd;
+}
+
+#msgInput {
+  flex: 1;
+  padding: 12px 20px;
+  border-radius: 25px;
+  border: none;
+  outline: none;
+  background-color: white;
+  font-size: 15px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+#msgInput:focus {
+  box-shadow: 0 0 0 2px #075e54;
+}
+
+#msgInput::placeholder {
+  color: #999;
+}
+
+#chatForm button {
+  padding: 12px 25px;
+  background-color: #075e54;
+  border: none;
+  border-radius: 25px;
+  color: white;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 5px rgba(7, 94, 84, 0.3);
+}
+
+#chatForm button:hover {
+  background-color: #054c43;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(7, 94, 84, 0.4);
+}
+
+#chatForm button:active {
+  transform: translateY(0);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .messages {
+    padding: 15px;
+  }
+  
+  .message .bubble {
+    max-width: 75%;
+  }
+  
+  .message.self .bubble {
+    margin-left: 40px;
+  }
+  
+  .message.other .bubble {
+    margin-right: 40px;
+  }
+  
+  .chat-header {
+    padding: 12px 15px;
+  }
+  
+  #chatForm {
+    padding: 12px;
+  }
+}
+</style>
+
+</head>
+<body>
+
+<div class="chat-container">
+  <div class="chat-header">
+    <div class="header-info">
+      <a href="/chat" class="back-button">‹ العودة</a>
+      <div class="friend-name">الدردشة مع <%= friendUsername %></div>
+    </div>
+  </div>
+
+  <div class="messages" id="messages">
+    <% messages.forEach(msg => { %>
+      <div class="message <%= msg.userId.toString() === userId ? 'self':'other' %>">
+        <% if(msg.userId.toString() !== userId){ %>
+          <img src="<%= msg.avatarUrl || '/default-avatar.png' %>" class="avatar"/>
+        <% } %>
+        <div class="bubble"><%= msg.text %></div>
+        <% if(msg.userId.toString() === userId){ %>
+          <img src="<%= avatarUrl || '/default-avatar.png' %>" class="avatar"/>
+        <% } %>
+      </div>
+    <% }) %>
+  </div>
+
+  <form id="chatForm">
+    <input id="msgInput" placeholder="اكتب رسالتك..." required />
+    <button>إرسال</button>
+  </form>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+const form = document.getElementById('chatForm');
+const input = document.getElementById('msgInput');
+const messages = document.getElementById('messages');
+const friendId = '<%= friendId %>';
+
+function appendMessage(msg){
+  const div = document.createElement('div');
+  div.classList.add('message');
+  
+  if(msg.userId === '<%= userId %>'){
+    div.classList.add('self');
+    div.innerHTML = `<div class="bubble">${msg.text}</div>
+                     <img src="<%= avatarUrl || '/default-avatar.png' %>" class="avatar"/>`;
+  } else {
+    div.classList.add('other');
+    div.innerHTML = `<img src="${msg.avatarUrl || '/default-avatar.png'}" class="avatar"/>
+                     <div class="bubble">${msg.text}</div>`;
+  }
+  
+  messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+// إرسال الرسالة
+form.addEventListener('submit', e=>{
+  e.preventDefault();
+  if(input.value){
+    const msgData = { text:input.value, toUserId:friendId };
+    socket.emit('private message', msgData);
+    input.value='';
+  }
+});
+
+// استقبال الرسائل
+socket.on('private message', msg=>{
+  appendMessage(msg);
+});
+</script>
+
+</body>
+</html>
