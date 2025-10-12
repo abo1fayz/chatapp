@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>أصدقائي</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f0f0f0;
+      direction: rtl;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      min-height: 100vh;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .header {
+      background: linear-gradient(135deg, #075e54, #128c7e);
+      color: white;
+      padding: 25px 20px;
+      text-align: center;
+      position: relative;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .friends-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .friend-item {
+      display: flex;
+      align-items: center;
+      padding: 15px 20px;
+      border-bottom: 1px solid #f0f0f0;
+      transition: background-color 0.3s ease;
+      cursor: pointer;
+    }
+
+    .friend-item:hover {
+      background-color: #f8f9fa;
+    }
+
+    .friend-item:last-child {
+      border-bottom: none;
+    }
+
+    .friend-avatar {
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 18px;
+      margin-left: 15px;
+    }
+
+    .friend-info {
+      flex: 1;
+    }
+
+    .friend-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 4px;
+    }
+
+    .friend-status {
+      font-size: 13px;
+      color: #718096;
+    }
+
+    .online {
+      color: #48bb78;
+    }
+
+    .chat-btn {
+      background: linear-gradient(135deg, #25d366, #128c7e);
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 20px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      box-shadow: 0 2px 8px rgba(18, 140, 126, 0.3);
+    }
+
+    .chat-btn:hover {
+      background: linear-gradient(135deg, #128c7e, #075e54);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(18, 140, 126, 0.4);
+      color: white;
+      text-decoration: none;
+    }
+
+    .navigation {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-top: 1px solid #e2e8f0;
+      flex-wrap: wrap;
+    }
+
+    .nav-link {
+      background: white;
+      color: #075e54;
+      padding: 12px 20px;
+      border-radius: 25px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      border: 2px solid #075e54;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .nav-link:hover {
+      background: #075e54;
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(7, 94, 84, 0.3);
+      text-decoration: none;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #718096;
+    }
+
+    .empty-state h3 {
+      color: #4a5568;
+      margin-bottom: 10px;
+    }
+
+    .friend-count {
+      background: rgba(255, 255, 255, 0.2);
+      padding: 4px 12px;
+      border-radius: 15px;
+      font-size: 14px;
+      margin-top: 10px;
+      display: inline-block;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        margin: 0;
+        box-shadow: none;
+      }
+
+      .friend-item {
+        padding: 12px 15px;
+      }
+
+      .friend-avatar {
+        width: 45px;
+        height: 45px;
+        font-size: 16px;
+      }
+
+      .navigation {
+        padding: 15px;
+        gap: 10px;
+      }
+
+      .nav-link {
+        padding: 10px 15px;
+        font-size: 13px;
+      }
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .friend-item {
+      animation: fadeIn 0.4s ease-out;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📱 أصدقائي</h1>
+      <div class="friend-count">إجمالي الأصدقاء: <%= friends.length %></div>
+    </div>
+
+    <% if (friends.length > 0) { %>
+      <ul class="friends-list">
+        <% friends.forEach(friend => { %>
+          <li class="friend-item">
+            <div class="friend-avatar">
+              <%= friend.username.charAt(0).toUpperCase() %>
+            </div>
+            <div class="friend-info">
+              <div class="friend-name"><%= friend.username %></div>
+              <div class="friend-status online">● متصل الآن</div>
+            </div>
+            <a href="/chat-private/<%= friend._id %>" class="chat-btn">
+              💬 دردشة
+            </a>
+          </li>
+        <% }) %>
+      </ul>
+    <% } else { %>
+      <div class="empty-state">
+        <h3>لا يوجد أصدقاء حتى الآن</h3>
+        <p>يمكنك إضافة أصدقاء من قائمة المستخدمين</p>
+        <a href="/users" class="nav-link" style="margin-top: 20px; display: inline-block;">
+          تصفح المستخدمين
+        </a>
+      </div>
+    <% } %>
+
+    <div class="navigation">
+      <a href="/users" class="nav-link">👥 المستخدمون</a>
+      <a href="/friend-requests" class="nav-link">📩 طلبات الصداقة</a>
+      <a href="/chat" class="nav-link">💬 الشات العام</a>
+      <a href="/logout" class="nav-link">🚪 تسجيل الخروج</a>
+    </div>
+  </div>
+</body>
+</html>
