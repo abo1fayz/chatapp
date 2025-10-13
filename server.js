@@ -223,6 +223,22 @@ app.get('/logout', (req, res) => {
 app.get('/profile', requireLogin, async (req, res) => {
   try {
     const user = await User.findById(req.session.userId);
+    
+    // جلب إحصائيات المستخدم
+    const friendsCount = await Friendship.countDocuments({
+      $or: [
+        { requester: req.session.userId, status: 'accepted' },
+        { recipient: req.session.userId, status: 'accepted' }
+      ]
+    });
+
+    const messagesCount = await Message.countDocuments({
+      $or: [
+        { userId: req.session.userId },
+        { toUserId: req.session.userId }
+      ]
+    });
+
     res.render('profile', {
       user: {
         _id: user._id,
@@ -234,7 +250,11 @@ app.get('/profile', requireLogin, async (req, res) => {
       avatarUrl: req.session.avatarUrl,
       message: null,
       success: null,
-      passwordError: null
+      passwordError: null,
+      stats: {
+        friendsCount,
+        messagesCount
+      }
     });
   } catch (error) {
     console.error('Error loading profile:', error);
@@ -347,7 +367,7 @@ app.post('/update-password', requireLogin, async (req, res) => {
         username: user.username,
         avatarUrl: user.avatarUrl,
         createdAt: user.createdAt
-      },
+        },
       username: req.session.username,
       avatarUrl: req.session.avatarUrl,
       message: null,
@@ -623,62 +643,120 @@ app.get('/chat-private/:id', requireLogin, async (req, res) => {
 
 // --- Socket.IO ---
 const io = require('socket.io')(server);
-io.use((socket, next) => sessionMiddleware(socket.request, {}, next));
 
-io.on('connection', socket => {
+// استخدام session middleware مع Socket.IO
+io.use((socket, next) => {
+  sessionMiddleware(socket.request, {}, next);
+});
+
+io.on('connection', async (socket) => {
   const session = socket.request.session;
-  if (!session.userId) return;
+  
+  if (!session.userId) {
+    console.log('User not authenticated - disconnecting socket');
+    socket.disconnect();
+    return;
+  }
 
+  console.log('User connected:', session.username, 'Socket ID:', socket.id);
+
+  // انضمام إلى غرفة المستخدم
+  socket.join(session.userId.toString());
+
+  // الشات العام
   socket.on('chat message', async (data) => {
     try {
-      const msgData = { 
-        userId: session.userId, 
-        text: data.text, 
-        toUserId: null 
-      };
-      const message = new Message(msgData);
-      await message.save();
+      console.log('Received chat message:', data);
       
-      // جلب بيانات المستخدم للإرسال
+      if (!data.text || data.text.trim() === '') {
+        return;
+      }
+
       const user = await User.findById(session.userId);
-      const messageWithUser = {
-        ...msgData,
+      if (!user) {
+        console.log('User not found');
+        return;
+      }
+
+      const msgData = {
+        userId: session.userId,
         username: user.username,
         avatarUrl: user.avatarUrl,
-        userId: user._id.toString()
+        text: data.text.trim(),
+        toUserId: null
       };
-      
-      io.emit('chat message', messageWithUser);
+
+      const message = new Message(msgData);
+      await message.save();
+
+      console.log('Message saved, broadcasting to all users');
+
+      // إرسال الرسالة لجميع المستخدمين المتصلين
+      io.emit('chat message', {
+        ...msgData,
+        _id: message._id,
+        createdAt: message.createdAt
+      });
+
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Error handling chat message:', error);
     }
   });
 
+  // الرسائل الخاصة
   socket.on('private message', async (data) => {
     try {
-      const msgData = { 
-        userId: session.userId, 
-        text: data.text, 
-        toUserId: data.toUserId 
-      };
-      const message = new Message(msgData);
-      await message.save();
+      console.log('Received private message:', data);
       
-      // جلب بيانات المستخدم للإرسال
+      if (!data.text || data.text.trim() === '' || !data.toUserId) {
+        return;
+      }
+
       const user = await User.findById(session.userId);
-      const messageWithUser = {
-        ...msgData,
+      if (!user) {
+        console.log('User not found');
+        return;
+      }
+
+      const msgData = {
+        userId: session.userId,
         username: user.username,
         avatarUrl: user.avatarUrl,
-        userId: user._id.toString()
+        text: data.text.trim(),
+        toUserId: data.toUserId
       };
 
-      // إرسال الرسالة للمستخدمين المعنيين فقط
-      socket.to(data.toUserId).emit('private message', messageWithUser);
-      socket.emit('private message', messageWithUser);
+      const message = new Message(msgData);
+      await message.save();
+
+      console.log('Private message saved, sending to users:', session.userId, 'and', data.toUserId);
+
+      // إرسال الرسالة للمستخدم المرسل والمستقبل فقط
+      socket.emit('private message', {
+        ...msgData,
+        _id: message._id,
+        createdAt: message.createdAt
+      });
+
+      socket.to(data.toUserId).emit('private message', {
+        ...msgData,
+        _id: message._id,
+        createdAt: message.createdAt
+      });
+
     } catch (error) {
-      console.error('Error sending private message:', error);
+      console.error('Error handling private message:', error);
     }
+  });
+
+  // عند انقطاع الاتصال
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', session.username, 'Socket ID:', socket.id);
+  });
+
+  // معالجة الأخطاء
+  socket.on('error', (error) => {
+    console.error('Socket error:', error);
   });
 });
 
