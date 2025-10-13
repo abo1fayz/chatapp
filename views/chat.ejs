@@ -47,7 +47,6 @@
       transform: scale(1.1);
     }
 
-    /* باقي الستايل كما هو */
     #messages {
       flex: 1;
       overflow-y: auto;
@@ -290,7 +289,7 @@
 
   <form id="chatForm">
     <input id="msgInput" placeholder="اكتب رسالتك..." required />
-    <button>➤</button>
+    <button type="submit">➤</button>
   </form>
 
   <footer>
@@ -335,15 +334,19 @@
     const input = document.getElementById('msgInput');
     const messages = document.getElementById('messages');
 
-    form.addEventListener('submit', e => {
+    form.addEventListener('submit', function(e) {
       e.preventDefault();
-      if (input.value.trim()) {
-        socket.emit('chat message', { text: input.value });
+      const messageText = input.value.trim();
+      if (messageText) {
+        console.log('Sending message:', messageText);
+        socket.emit('chat message', { text: messageText });
         input.value = '';
+        input.focus();
       }
     });
 
-    socket.on('chat message', msg => {
+    socket.on('chat message', function(msg) {
+      console.log('Received message:', msg);
       const li = document.createElement('li');
       li.className = 'message ' + (msg.userId === '<%= userId %>' ? 'mine' : 'theirs');
       li.innerHTML = `
@@ -359,6 +362,19 @@
 
     // التركيز على حقل الإدخال عند التحميل
     input.focus();
+
+    // إعادة الاتصال في حالة فقدان الاتصال
+    socket.on('disconnect', function() {
+      console.log('Disconnected from server');
+    });
+
+    socket.on('connect', function() {
+      console.log('Connected to server');
+    });
+
+    socket.on('error', function(error) {
+      console.error('Socket error:', error);
+    });
   </script>
 </body>
 </html>
