@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>البروفايل الشخصي</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f0f0f0;
+      direction: rtl;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      min-height: 100vh;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+
+    .header {
+      background: linear-gradient(135deg, #075e54, #128c7e);
+      color: white;
+      padding: 25px 20px;
+      text-align: center;
+      position: relative;
+    }
+
+    .profile-header {
+      position: absolute;
+      left: 20px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+
+    .profile-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      cursor: pointer;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      transition: all 0.3s ease;
+    }
+
+    .profile-icon:hover {
+      border-color: rgba(255, 255, 255, 0.8);
+      transform: scale(1.1);
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 600;
+    }
+
+    .profile-content {
+      padding: 30px 20px;
+    }
+
+    .profile-card {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+      margin-bottom: 30px;
+      text-align: center;
+    }
+
+    .avatar-section {
+      margin-bottom: 30px;
+    }
+
+    .avatar-img {
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 5px solid #075e54;
+      margin-bottom: 20px;
+    }
+
+    .info-section {
+      text-align: right;
+      margin-bottom: 30px;
+    }
+
+    .info-item {
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 15px;
+      margin-bottom: 15px;
+      border-right: 4px solid #075e54;
+    }
+
+    .info-label {
+      font-weight: 600;
+      color: #075e54;
+      margin-bottom: 5px;
+    }
+
+    .info-value {
+      color: #333;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+      text-align: right;
+    }
+
+    .form-group label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: #075e54;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px 15px;
+      border: 2px solid #e0e0e0;
+      border-radius: 10px;
+      font-size: 16px;
+      outline: none;
+      transition: all 0.3s ease;
+      box-sizing: border-box;
+    }
+
+    .form-group input:focus {
+      border-color: #075e54;
+      box-shadow: 0 0 0 3px rgba(7, 94, 84, 0.1);
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #25d366, #128c7e);
+      color: white;
+      border: none;
+      padding: 12px 25px;
+      border-radius: 25px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
+      margin: 5px;
+    }
+
+    .btn:hover {
+      background: linear-gradient(135deg, #128c7e, #075e54);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(37, 211, 102, 0.4);
+    }
+
+    .btn-secondary {
+      background: linear-gradient(135deg, #667eea, #764ba2);
+    }
+
+    .btn-secondary:hover {
+      background: linear-gradient(135deg, #5a6fd8, #6b46c1);
+    }
+
+    .message {
+      padding: 15px;
+      border-radius: 10px;
+      margin: 15px 0;
+      text-align: center;
+      font-weight: 500;
+    }
+
+    .success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+
+    .error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+
+    .file-input-container {
+      position: relative;
+      display: inline-block;
+      margin: 10px 0;
+    }
+
+    .file-input-label {
+      display: inline-block;
+      padding: 10px 20px;
+      background: #f8f9fa;
+      border: 2px dashed #075e54;
+      border-radius: 10px;
+      color: #075e54;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    .file-input-label:hover {
+      background: #075e54;
+      color: white;
+    }
+
+    input[type="file"] {
+      position: absolute;
+      left: -9999px;
+      opacity: 0;
+    }
+
+    .navigation {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-top: 1px solid #e2e8f0;
+      flex-wrap: wrap;
+    }
+
+    .nav-link {
+      background: white;
+      color: #075e54;
+      padding: 12px 20px;
+      border-radius: 25px;
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      border: 2px solid #075e54;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .nav-link:hover {
+      background: #075e54;
+      color: white;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 10px rgba(7, 94, 84, 0.3);
+      text-decoration: none;
+    }
+
+    .section-title {
+      color: #075e54;
+      border-bottom: 2px solid #075e54;
+      padding-bottom: 10px;
+      margin-bottom: 20px;
+      font-size: 20px;
+    }
+
+    .remember-me {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 15px 0;
+      text-align: right;
+    }
+
+    .remember-me input {
+      width: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="profile-header">
+        <a href="/chat">
+          <img src="<%= avatarUrl || '/default-avatar.png' %>" alt="البروفايل" class="profile-icon">
+        </a>
+      </div>
+      <h1>👤 البروفايل الشخصي</h1>
+    </div>
+
+    <div class="profile-content">
+      <!-- رسائل النجاح/الخطأ -->
+      <% if (success) { %>
+        <div class="message success"><%= success %></div>
+      <% } %>
+      
+      <% if (message) { %>
+        <div class="message error"><%= message %></div>
+      <% } %>
+
+      <!-- معلومات البروفايل -->
+      <div class="profile-card">
+        <div class="avatar-section">
+          <img src="<%= user.avatarUrl || '/default-avatar.png' %>" alt="صورة البروفايل" class="avatar-img">
+          <div>
+            <h2 style="color: #075e54; margin: 10px 0;"><%= user.username %></h2>
+            <p style="color: #666; margin: 0;">عضو منذ <%= new Date(user.createdAt).toLocaleDateString('ar-SA') %></p>
+          </div>
+        </div>
+
+        <!-- معلومات الحساب -->
+        <div class="info-section">
+          <h3 class="section-title">معلومات الحساب</h3>
+          <div class="info-item">
+            <div class="info-label">اسم المستخدم</div>
+            <div class="info-value"><%= user.username %></div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">تاريخ الانضمام</div>
+            <div class="info-value"><%= new Date(user.createdAt).toLocaleDateString('ar-SA', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            }) %></div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">معرف المستخدم</div>
+            <div class="info-value" style="font-family: monospace; font-size: 14px;"><%= user._id %></div>
+          </div>
+        </div>
+
+        <!-- تحديث البروفايل -->
+        <form action="/update-profile" method="POST" enctype="multipart/form-data">
+          <h3 class="section-title">تحديث البروفايل</h3>
+          
+          <div class="form-group">
+            <label for="username">اسم المستخدم الجديد:</label>
+            <input type="text" id="username" name="username" value="<%= user.username %>" placeholder="اسم المستخدم الجديد">
+          </div>
+
+          <div class="form-group">
+            <div class="file-input-container">
+              <label for="avatarInput" class="file-input-label">
+                📸 تغيير الصورة الشخصية
+              </label>
+              <input type="file" name="avatar" accept="image/*" id="avatarInput">
+            </div>
+          </div>
+
+          <button type="submit" class="btn">💾 حفظ التغييرات</button>
+        </form>
+
+        <!-- تغيير كلمة السر -->
+        <form action="/update-password" method="POST">
+          <h3 class="section-title">تغيير كلمة السر</h3>
+          
+          <% if (passwordError) { %>
+            <div class="message error"><%= passwordError %></div>
+          <% } %>
+          
+          <div class="form-group">
+            <label for="currentPassword">كلمة السر الحالية:</label>
+            <input type="password" id="currentPassword" name="currentPassword" required placeholder="أدخل كلمة السر الحالية">
+          </div>
+
+          <div class="form-group">
+            <label for="newPassword">كلمة السر الجديدة:</label>
+            <input type="password" id="newPassword" name="newPassword" required placeholder="كلمة السر الجديدة (4 أحرف على الأقل)" minlength="4">
+          </div>
+
+          <button type="submit" class="btn">🔐 تغيير كلمة السر</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="navigation">
+      <a href="/chat" class="nav-link">💬 الشات العام</a>
+      <a href="/friends" class="nav-link">👥 الأصدقاء</a>
+      <a href="/users" class="nav-link">🔍 المستخدمون</a>
+      <a href="/logout" class="nav-link">🚪 تسجيل الخروج</a>
+    </div>
+  </div>
+
+  <script>
+    // معاينة الصورة قبل الرفع
+    document.getElementById('avatarInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (file) {
+        if (file.size > 5 * 1024 * 1024) {
+          alert('حجم الملف كبير جدًا. الرجاء اختيار صورة أقل من 5MB');
+          this.value = '';
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.querySelector('.avatar-img').src = e.target.result;
+        }
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // حفظ userId في localStorage
+    const userId = '<%= user._id %>';
+    if (userId) {
+      localStorage.setItem('userId', userId);
+    }
+  </script>
+</body>
+</html>
