@@ -243,12 +243,17 @@
     <form action="/login" method="POST">
       <div class="input-group">
         <input type="text" name="username" placeholder="اسم المستخدم" required />
+
       </div>
       
       <div class="input-group password-container">
         <input type="password" name="password" id="password" placeholder="كلمة السر" required />
         <button type="button" class="toggle-password" onclick="togglePassword()">👁️</button>
       </div>
+<div class="remember-me">
+  <input type="checkbox" id="rememberMe" name="rememberMe" checked>
+  <label for="rememberMe">تذكرني</label>
+</div>
       
       <button type="submit">دخول →</button>
     </form>
