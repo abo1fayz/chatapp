@@ -294,5 +294,28 @@
       }
     }
   </script>
+<script>
+// محاولة تسجيل الدخول التلقائي
+document.addEventListener('DOMContentLoaded', function() {
+  const savedUserId = localStorage.getItem('userId');
+  if (savedUserId) {
+    fetch('/auto-login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId: savedUserId })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        window.location.href = '/chat';
+      } else {
+        localStorage.removeItem('userId');
+      }
+    });
+  }
+});
+</script>
 </body>
 </html>
