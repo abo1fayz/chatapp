@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>الأصدقاء</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * {
             margin: 0;
@@ -54,6 +55,7 @@
             border-radius: 50%;
             border: 2px solid rgba(255, 255, 255, 0.3);
             object-fit: cover;
+            cursor: pointer;
         }
 
         .header-title {
@@ -65,12 +67,30 @@
         .header-actions {
             display: flex;
             gap: 15px;
+            position: relative;
         }
 
         .header-icon {
             color: white;
             font-size: 20px;
             cursor: pointer;
+            position: relative;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            background: #ff3b30;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
         }
 
         /* محتوى القائمة */
@@ -195,14 +215,35 @@
             background: #25d366;
             color: white;
             border-radius: 50%;
-            width: 20px;
-            height: 20px;
+            width: 40px;
+            height: 40px;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 18px;
+            text-decoration: none;
+            position: relative;
+            transition: transform 0.2s ease;
+        }
+
+        .chat-indicator:hover {
+            transform: scale(1.05);
+        }
+
+        .unread-badge {
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            background: #ff3b30;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
             font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-weight: bold;
-            margin-right: 10px;
         }
 
         /* حالة فارغة */
@@ -416,6 +457,73 @@
             content: "جاري التحميل...";
             font-size: 14px;
         }
+
+        /* الإشعارات */
+        .notification-container {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            z-index: 1000;
+            max-width: 300px;
+        }
+
+        .notification {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border-right: 4px solid #25d366;
+            animation: slideIn 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .notification-icon {
+            color: #25d366;
+            font-size: 20px;
+        }
+
+        .notification-content {
+            flex: 1;
+        }
+
+        .notification-title {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .notification-message {
+            font-size: 14px;
+            color: #666;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .notification.fade-out {
+            animation: slideOut 0.3s ease forwards;
+        }
+
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -429,8 +537,13 @@
                 <div class="header-title">الأصدقاء</div>
             </div>
             <div class="header-actions">
-                <div class="header-icon">🔍</div>
-                <div class="header-icon">⋮</div>
+                <div class="header-icon" id="notificationIcon">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-badge" id="notificationBadge" style="display: none;">0</span>
+                </div>
+                <a href="/users" class="header-icon">
+                    <i class="fas fa-user-plus"></i>
+                </a>
             </div>
         </div>
 
@@ -443,7 +556,7 @@
         <!-- شريط البحث -->
         <div class="search-container">
             <div class="search-box">
-                <div class="search-icon">🔍</div>
+                <div class="search-icon"><i class="fas fa-search"></i></div>
                 <input type="text" class="search-input" placeholder="ابحث عن صديق..." id="searchInput">
             </div>
         </div>
@@ -457,7 +570,7 @@
                         const lastSeenTime = friend.lastSeen ? new Date(friend.lastSeen) : new Date();
                         const timeAgo = getTimeAgo(lastSeenTime);
                     %>
-                        <li class="friend-item" data-username="<%= friend.username.toLowerCase() %>">
+                        <li class="friend-item" data-username="<%= friend.username.toLowerCase() %>" data-friend-id="<%= friend._id %>">
                             <div class="avatar-container">
                                 <img src="<%= friend.avatarUrl || '/default-avatar.png' %>" 
                                      alt="<%= friend.username %>" 
@@ -477,16 +590,18 @@
                                     <% } %>
                                 </div>
                             </div>
-                            <a href="/chat-private/<%= friend._id %>" class="chat-indicator" 
-                               style="text-decoration: none; display: flex; align-items: center; justify-content: center;">
-                                💬
+                            <a href="/chat-private/<%= friend._id %>" class="chat-indicator">
+                                <i class="fas fa-comment"></i>
+                                <% if (friend.unreadCount > 0) { %>
+                                    <span class="unread-badge"><%= friend.unreadCount %></span>
+                                <% } %>
                             </a>
                         </li>
                     <% }) %>
                 </ul>
             <% } else { %>
                 <div class="empty-state">
-                    <div class="empty-icon">👥</div>
+                    <div class="empty-icon"><i class="fas fa-user-friends"></i></div>
                     <div class="empty-title">لا يوجد أصدقاء</div>
                     <div class="empty-description">
                         ابدأ بإضافة أصدقاء جدد للدردشة معهم
@@ -510,29 +625,42 @@
         <!-- التنقل السفلي -->
         <div class="bottom-nav">
             <a href="/chat" class="nav-item">
-                <span class="nav-icon">💬</span>
+                <span class="nav-icon"><i class="fas fa-comments"></i></span>
                 <span class="nav-text">الدردشة</span>
             </a>
             <a href="/" class="nav-item active">
-                <span class="nav-icon">👥</span>
+                <span class="nav-icon"><i class="fas fa-user-friends"></i></span>
                 <span class="nav-text">الأصدقاء</span>
             </a>
             <a href="/users" class="nav-item">
-                <span class="nav-icon">🔍</span>
+                <span class="nav-icon"><i class="fas fa-search"></i></span>
                 <span class="nav-text">المستخدمون</span>
             </a>
             <a href="/friend-requests" class="nav-item">
-                <span class="nav-icon">📩</span>
+                <span class="nav-icon"><i class="fas fa-user-plus"></i></span>
                 <span class="nav-text">الطلبات</span>
             </a>
             <a href="/profile" class="nav-item">
-                <span class="nav-icon">👤</span>
+                <span class="nav-icon"><i class="fas fa-user"></i></span>
                 <span class="nav-text">البروفايل</span>
             </a>
         </div>
     </div>
 
+    <!-- حاوية الإشعارات -->
+    <div class="notification-container" id="notificationContainer"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
     <script>
+        // تهيئة Socket.IO
+        const socket = io();
+        
+        // حفظ userId في localStorage
+        const userId = '<%= typeof userId !== "undefined" ? userId : "" %>';
+        if (userId) {
+            localStorage.setItem('userId', userId);
+        }
+
         // البحث في الوقت الحقيقي
         document.getElementById('searchInput').addEventListener('input', function(e) {
             const searchTerm = e.target.value.toLowerCase();
@@ -547,15 +675,6 @@
                 }
             });
         });
-
-        // حفظ userId في localStorage
-        const userId = '<%= typeof userId !== "undefined" ? userId : "" %>';
-        if (userId) {
-            localStorage.setItem('userId', userId);
-        }
-
-        // تحسين تجربة المستخدم على الأجهزة التي تعمل باللمس
-        document.addEventListener('touchstart', function() {}, {passive: true});
 
         // تأثير النقر على العناصر
         document.querySelectorAll('.friend-item').forEach(item => {
@@ -581,23 +700,170 @@
 
         // تحديث كل 30 ثانية
         setInterval(updateOnlineStatus, 30000);
-    </script>
 
-    <!-- دالة مساعدة لحساب الوقت المنقضي -->
-    <script>
-        function getTimeAgo(date) {
-            const now = new Date();
-            const diff = now - date;
-            const minutes = Math.floor(diff / 60000);
-            const hours = Math.floor(diff / 3600000);
-            const days = Math.floor(diff / 86400000);
-
-            if (minutes < 1) return 'الآن';
-            if (minutes < 60) return `منذ ${minutes} دقيقة`;
-            if (hours < 24) return `منذ ${hours} ساعة`;
-            if (days < 7) return `منذ ${days} يوم`;
-            return date.toLocaleDateString('ar-SA');
+        // دالة لعرض الإشعارات
+        function showNotification(title, message, type = 'info') {
+            const notificationContainer = document.getElementById('notificationContainer');
+            const notificationId = 'notification-' + Date.now();
+            
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.id = notificationId;
+            
+            let icon = 'fas fa-info-circle';
+            if (type === 'success') icon = 'fas fa-check-circle';
+            if (type === 'warning') icon = 'fas fa-exclamation-triangle';
+            if (type === 'error') icon = 'fas fa-exclamation-circle';
+            if (type === 'message') icon = 'fas fa-comment';
+            
+            notification.innerHTML = `
+                <div class="notification-icon">
+                    <i class="${icon}"></i>
+                </div>
+                <div class="notification-content">
+                    <div class="notification-title">${title}</div>
+                    <div class="notification-message">${message}</div>
+                </div>
+            `;
+            
+            notificationContainer.appendChild(notification);
+            
+            // إزالة الإشعار بعد 5 ثوانٍ
+            setTimeout(() => {
+                const notif = document.getElementById(notificationId);
+                if (notif) {
+                    notif.classList.add('fade-out');
+                    setTimeout(() => {
+                        if (notif.parentNode) {
+                            notif.parentNode.removeChild(notif);
+                        }
+                    }, 300);
+                }
+            }, 5000);
         }
+
+        // استقبال إشعارات جديدة من السيرفر
+        socket.on('new message notification', (data) => {
+            // تحديث عدد الرسائل غير المقروءة للصديق المعين
+            const friendItem = document.querySelector(`.friend-item[data-friend-id="${data.fromId}"]`);
+            if (friendItem) {
+                const unreadBadge = friendItem.querySelector('.unread-badge');
+                const chatIndicator = friendItem.querySelector('.chat-indicator');
+                
+                if (unreadBadge) {
+                    unreadBadge.textContent = data.unreadCount;
+                } else {
+                    const newBadge = document.createElement('span');
+                    newBadge.className = 'unread-badge';
+                    newBadge.textContent = data.unreadCount;
+                    chatIndicator.appendChild(newBadge);
+                }
+                
+                // عرض إشعار بالرسالة الجديدة
+                showNotification('رسالة جديدة', `لديك رسالة جديدة من ${data.from}`, 'message');
+                
+                // تحديث العدد الإجمالي للإشعارات
+                updateTotalNotifications();
+            }
+        });
+
+        // تحديث العدد الإجمالي للإشعارات
+        function updateTotalNotifications() {
+            const unreadBadges = document.querySelectorAll('.unread-badge');
+            let totalUnread = 0;
+            
+            unreadBadges.forEach(badge => {
+                totalUnread += parseInt(badge.textContent) || 0;
+            });
+            
+            const notificationBadge = document.getElementById('notificationBadge');
+            if (totalUnread > 0) {
+                notificationBadge.textContent = totalUnread > 99 ? '99+' : totalUnread;
+                notificationBadge.style.display = 'flex';
+            } else {
+                notificationBadge.style.display = 'none';
+            }
+        }
+
+        // تحديث العدد الإجمالي للإشعارات عند التحميل
+        document.addEventListener('DOMContentLoaded', updateTotalNotifications);
+
+        // تحديث حالة القراءة عند زيارة صفحة الدردشة
+        document.querySelectorAll('.chat-indicator').forEach(link => {
+            link.addEventListener('click', function(e) {
+                const friendItem = this.closest('.friend-item');
+                const friendId = friendItem.getAttribute('data-friend-id');
+                
+                // تحديث حالة الرسائل كمقروءة
+                fetch(`/mark-as-read/${friendId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // إزالة شارة الرسائل غير المقروءة
+                        const unreadBadge = this.querySelector('.unread-badge');
+                        if (unreadBadge) {
+                            unreadBadge.remove();
+                        }
+                        
+                        // تحديث العدد الإجمالي للإشعارات
+                        updateTotalNotifications();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error marking messages as read:', error);
+                });
+            });
+        });
+
+        // تحديث عدد الرسائل غير المقروءة بشكل دوري
+        function updateUnreadCounts() {
+            document.querySelectorAll('.friend-item').forEach(item => {
+                const friendId = item.getAttribute('data-friend-id');
+                
+                fetch(`/unread-count/${friendId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            const unreadCount = data.unreadCount;
+                            const chatIndicator = item.querySelector('.chat-indicator');
+                            const existingBadge = chatIndicator.querySelector('.unread-badge');
+                            
+                            if (unreadCount > 0) {
+                                if (existingBadge) {
+                                    existingBadge.textContent = unreadCount;
+                                } else {
+                                    const newBadge = document.createElement('span');
+                                    newBadge.className = 'unread-badge';
+                                    newBadge.textContent = unreadCount;
+                                    chatIndicator.appendChild(newBadge);
+                                }
+                            } else if (existingBadge) {
+                                existingBadge.remove();
+                            }
+                            
+                            // تحديث العدد الإجمالي للإشعارات
+                            updateTotalNotifications();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error updating unread count:', error);
+                    });
+            });
+        }
+
+        // تحديث عدد الرسائل غير المقروءة كل 30 ثانية
+        setInterval(updateUnreadCounts, 30000);
+
+        // تحديث فوري عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', updateUnreadCounts);
+
+        // تحسين تجربة المستخدم على الأجهزة التي تعمل باللمس
+        document.addEventListener('touchstart', function() {}, {passive: true});
     </script>
 </body>
 </html>
