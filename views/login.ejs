@@ -204,6 +204,27 @@
       color: #075e54;
     }
 
+    .remember-me {
+      text-align: right;
+      margin: 15px 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+    
+    .remember-me input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+    
+    .remember-me label {
+      cursor: pointer;
+      color: #075e54;
+      font-weight: 500;
+    }
+
     @media (max-width: 480px) {
       .container {
         margin: 20px;
@@ -240,20 +261,20 @@
     <h1>تسجيل الدخول</h1>
     <p class="welcome-text">أهلاً بعودتك! سجل الدخول لمتابعة الدردشة</p>
 
-    <form action="/login" method="POST">
+    <form action="/login" method="POST" id="loginForm">
       <div class="input-group">
-        <input type="text" name="username" placeholder="اسم المستخدم" required />
-
+        <input type="text" name="username" id="username" placeholder="اسم المستخدم" required />
       </div>
       
       <div class="input-group password-container">
         <input type="password" name="password" id="password" placeholder="كلمة السر" required />
         <button type="button" class="toggle-password" onclick="togglePassword()">👁️</button>
       </div>
-<div class="remember-me">
-  <input type="checkbox" id="rememberMe" name="rememberMe" checked>
-  <label for="rememberMe">تذكرني</label>
-</div>
+      
+      <div class="remember-me">
+        <input type="checkbox" id="rememberMe" name="rememberMe">
+        <label for="rememberMe">تذكرني</label>
+      </div>
       
       <button type="submit">دخول →</button>
     </form>
@@ -272,14 +293,6 @@
   </div>
 
   <script>
-    // إضافة تأثير عند تحميل الصفحة
-    document.addEventListener('DOMContentLoaded', function() {
-      const input = document.querySelector('input[type="text"]');
-      setTimeout(() => {
-        input.focus();
-      }, 500);
-    });
-
     // وظيفة إظهار/إخفاء كلمة السر
     function togglePassword() {
       const passwordInput = document.getElementById('password');
@@ -293,29 +306,65 @@
         toggleButton.textContent = '👁️';
       }
     }
-  </script>
-<script>
-// محاولة تسجيل الدخول التلقائي
-document.addEventListener('DOMContentLoaded', function() {
-  const savedUserId = localStorage.getItem('userId');
-  if (savedUserId) {
-    fetch('/auto-login', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ userId: savedUserId })
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        window.location.href = '/chat';
+
+    // التحقق من بيانات تسجيل الدخول المحفوظة
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('🔍 جارٍ تحميل صفحة تسجيل الدخول...');
+      
+      const savedUsername = localStorage.getItem('savedUsername');
+      const rememberMe = localStorage.getItem('rememberMe') === 'true';
+      
+      if (savedUsername && rememberMe) {
+        document.getElementById('username').value = savedUsername;
+        document.getElementById('rememberMe').checked = true;
+        document.getElementById('password').focus();
+        console.log('✅ تم تحميل البيانات المحفوظة:', savedUsername);
       } else {
-        localStorage.removeItem('userId');
+        document.getElementById('username').focus();
       }
+
+      // التحقق من وجود جلسة نشطة
+      checkExistingSession();
     });
-  }
-});
-</script>
+
+    // التحقق من الجلسة الحالية
+    function checkExistingSession() {
+      fetch('/check-session')
+        .then(response => response.json())
+        .then(data => {
+          console.log('فحص الجلسة:', data);
+          if (data.success && data.redirect) {
+            console.log('✅ يوجد جلسة نشطة، التوجيه إلى:', data.redirect);
+            window.location.href = data.redirect;
+          }
+        })
+        .catch(error => {
+          console.error('خطأ في فحص الجلسة:', error);
+        });
+    }
+
+    // حفظ بيانات التسجيل عند إرسال النموذج
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+      const rememberMe = document.getElementById('rememberMe').checked;
+      const username = document.getElementById('username').value;
+      
+      console.log('📝 حفظ تفضيلات تسجيل الدخول:', { rememberMe, username });
+      
+      if (rememberMe && username) {
+        localStorage.setItem('savedUsername', username);
+        localStorage.setItem('rememberMe', 'true');
+        console.log('💾 تم حفظ البيانات في localStorage');
+      } else {
+        localStorage.removeItem('savedUsername');
+        localStorage.removeItem('rememberMe');
+        console.log('🗑️ تم مسح البيانات من localStorage');
+      }
+
+      // إضافة رسالة تحميل
+      const submitButton = this.querySelector('button[type="submit"]');
+      submitButton.innerHTML = 'جارٍ التسجيل...';
+      submitButton.disabled = true;
+    });
+  </script>
 </body>
 </html>
