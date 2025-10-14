@@ -546,6 +546,256 @@ app.get('/profile', requireLogin, async (req, res) => {
         });
     }
 });
+// --- Profile Update Routes ---
+
+// تحديث البروفايل
+app.post('/update-profile', requireLogin, upload.single('avatar'), async (req, res) => {
+    try {
+        const { username } = req.body;
+        const user = await User.findById(req.session.userId);
+        
+        if (!user) {
+            return res.redirect('/logout');
+        }
+
+        let message = null;
+        let success = null;
+
+        // التحقق من اسم المستخدم
+        if (username && username !== user.username) {
+            const trimmedUsername = username.trim();
+            
+            if (trimmedUsername.length < 3) {
+                message = 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل';
+            } else {
+                const existingUser = await User.findOne({ 
+                    username: new RegExp(`^${trimmedUsername}$`, 'i'),
+                    _id: { $ne: user._id }
+                });
+                
+                if (existingUser) {
+                    message = 'اسم المستخدم مستخدم بالفعل';
+                } else {
+                    user.username = trimmedUsername;
+                    req.session.username = trimmedUsername;
+                    success = 'تم تحديث البروفايل بنجاح';
+                }
+            }
+        }
+
+        // تحديث الصورة
+        if (req.file && !message) {
+            try {
+                console.log('🖼️ رفع صورة جديدة...');
+                const uploadResult = await new Promise((resolve, reject) => {
+                    const stream = cloudinary.uploader.upload_stream(
+                        { 
+                            folder: 'chat-app/avatars',
+                            transformation: [
+                                { width: 200, height: 200, crop: 'fill' },
+                                { quality: 'auto' },
+                                { format: 'webp' }
+                            ]
+                        }, 
+                        (err, result) => {
+                            if (err) reject(err); 
+                            else resolve(result);
+                        }
+                    );
+                    stream.end(req.file.buffer);
+                });
+                
+                user.avatarUrl = uploadResult.secure_url;
+                req.session.avatarUrl = uploadResult.secure_url;
+                success = success || 'تم تحديث البروفايل بنجاح';
+                console.log('✅ تم رفع الصورة:', uploadResult.secure_url);
+                
+            } catch (uploadError) {
+                console.error('❌ خطأ في رفع الصورة:', uploadError);
+                message = message || 'حدث خطأ في رفع الصورة';
+            }
+        }
+
+        // حفظ التغييرات
+        if (!message) {
+            await user.save();
+            console.log('✅ تم تحديث بيانات المستخدم:', user.username);
+        }
+
+        // جلب الإحصائيات المحدثة
+        const [friendsCount, messagesCount] = await Promise.all([
+            Friendship.countDocuments({
+                $or: [
+                    { requester: req.session.userId, status: 'accepted' },
+                    { recipient: req.session.userId, status: 'accepted' }
+                ]
+            }),
+            Message.countDocuments({
+                $or: [
+                    { userId: req.session.userId },
+                    { toUserId: req.session.userId }
+                ]
+            })
+        ]);
+
+        res.render('profile', {
+            user: {
+                _id: user._id,
+                username: user.username,
+                avatarUrl: user.avatarUrl,
+                createdAt: user.createdAt
+            },
+            username: req.session.username,
+            avatarUrl: req.session.avatarUrl,
+            message: message,
+            success: success,
+            passwordError: null,
+            stats: {
+                friendsCount,
+                messagesCount
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في تحديث البروفايل:', error);
+        res.status(500).render('error', { 
+            message: 'حدث خطأ في تحديث البروفايل',
+            title: 'خطأ'
+        });
+    }
+});
+
+// تحديث كلمة السر
+app.post('/update-password', requireLogin, async (req, res) => {
+    try {
+        const { currentPassword, newPassword } = req.body;
+        const user = await User.findById(req.session.userId);
+        
+        if (!user) {
+            return res.redirect('/logout');
+        }
+
+        // التحقق من كلمة السر الحالية
+        const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
+        if (!isCurrentPasswordValid) {
+            const [friendsCount, messagesCount] = await Promise.all([
+                Friendship.countDocuments({
+                    $or: [
+                        { requester: req.session.userId, status: 'accepted' },
+                        { recipient: req.session.userId, status: 'accepted' }
+                    ]
+                }),
+                Message.countDocuments({
+                    $or: [
+                        { userId: req.session.userId },
+                        { toUserId: req.session.userId }
+                    ]
+                })
+            ]);
+
+            return res.render('profile', {
+                user: {
+                    _id: user._id,
+                    username: user.username,
+                    avatarUrl: user.avatarUrl,
+                    createdAt: user.createdAt
+                },
+                username: req.session.username,
+                avatarUrl: req.session.avatarUrl,
+                message: null,
+                success: null,
+                passwordError: 'كلمة السر الحالية غير صحيحة',
+                stats: {
+                    friendsCount,
+                    messagesCount
+                }
+            });
+        }
+
+        // التحقق من كلمة السر الجديدة
+        if (!newPassword || newPassword.length < 4) {
+            const [friendsCount, messagesCount] = await Promise.all([
+                Friendship.countDocuments({
+                    $or: [
+                        { requester: req.session.userId, status: 'accepted' },
+                        { recipient: req.session.userId, status: 'accepted' }
+                    ]
+                }),
+                Message.countDocuments({
+                    $or: [
+                        { userId: req.session.userId },
+                        { toUserId: req.session.userId }
+                    ]
+                })
+            ]);
+
+            return res.render('profile', {
+                user: {
+                    _id: user._id,
+                    username: user.username,
+                    avatarUrl: user.avatarUrl,
+                    createdAt: user.createdAt
+                },
+                username: req.session.username,
+                avatarUrl: req.session.avatarUrl,
+                message: null,
+                success: null,
+                passwordError: 'كلمة السر الجديدة يجب أن تكون 4 أحرف على الأقل',
+                stats: {
+                    friendsCount,
+                    messagesCount
+                }
+            });
+        }
+
+        // تحديث كلمة السر
+        user.passwordHash = await bcrypt.hash(newPassword, 12);
+        await user.save();
+
+        console.log('✅ تم تحديث كلمة السر للمستخدم:', user.username);
+
+        // جلب الإحصائيات المحدثة
+        const [friendsCount, messagesCount] = await Promise.all([
+            Friendship.countDocuments({
+                $or: [
+                    { requester: req.session.userId, status: 'accepted' },
+                    { recipient: req.session.userId, status: 'accepted' }
+                ]
+            }),
+            Message.countDocuments({
+                $or: [
+                    { userId: req.session.userId },
+                    { toUserId: req.session.userId }
+                ]
+            })
+        ]);
+
+        res.render('profile', {
+            user: {
+                _id: user._id,
+                username: user.username,
+                avatarUrl: user.avatarUrl,
+                createdAt: user.createdAt
+            },
+            username: req.session.username,
+            avatarUrl: req.session.avatarUrl,
+            message: null,
+            success: 'تم تحديث كلمة السر بنجاح',
+            passwordError: null,
+            stats: {
+                friendsCount,
+                messagesCount
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ خطأ في تحديث كلمة السر:', error);
+        res.status(500).render('error', { 
+            message: 'حدث خطأ في تحديث كلمة السر',
+            title: 'خطأ'
+        });
+    }
+});
 
 // --- Chat Routes ---
 app.get('/chat', requireLogin, async (req, res) => {
