@@ -51,7 +51,7 @@ const sessionMiddleware = session({
     cookie: { 
         maxAge: 24 * 60 * 60 * 1000, // 24 ساعة
         httpOnly: true,
-        secure: false, // ضع true في production
+        secure: false,
         sameSite: 'lax'
     }
 });
@@ -63,6 +63,7 @@ app.use((req, res, next) => {
         sessionId: req.sessionID?.substring(0, 10) + '...',
         userId: req.session.userId,
         username: req.session.username,
+        isAdmin: req.session.isAdmin,
         path: req.path
     });
     next();
@@ -137,6 +138,24 @@ function redirectIfLoggedIn(req, res, next) {
     next();
 }
 
+// --- Admin Configuration ---
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
+
+// Middleware للتحقق من صلاحيات المسؤول
+function requireAdmin(req, res, next) {
+    if (!req.session.userId) {
+        return res.redirect('/login');
+    }
+    
+    if (!req.session.isAdmin) {
+        return res.status(403).render('error', {
+            message: 'ليس لديك صلاحيات للوصول إلى هذه الصفحة',
+            title: 'صلاحيات غير كافية'
+        });
+    }
+    next();
+}
+
 // --- Routes ---
 
 // الصفحة الرئيسية - الآن تعرض الأصدقاء
@@ -159,7 +178,6 @@ app.get('/', requireLogin, async (req, res) => {
             const friend = f.requester._id.toString() === req.session.userId.toString() ? 
                 f.recipient : f.requester;
 
-            // جلب عدد الرسائل غير المقروءة - الإصلاح هنا
             const unreadCount = await Message.countDocuments({
                 userId: friend._id,
                 toUserId: req.session.userId,
@@ -263,7 +281,6 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
 
         const { password } = req.body;
         
-        // التحقق من كلمة السر
         if (!password || password.length < 4) {
             return res.render('password', { 
                 username, 
@@ -273,7 +290,6 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
 
         let avatarUrl = null;
         
-        // رفع الصورة إذا وجدت
         if (req.file) {
             try {
                 const uploadResult = await new Promise((resolve, reject) => {
@@ -303,7 +319,6 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
             }
         }
 
-        // إنشاء المستخدم
         const hashedPassword = await bcrypt.hash(password, 12);
         const user = new User({ 
             username, 
@@ -314,7 +329,6 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
         
         await user.save();
 
-        // 🔥 تسجيل الدخول التلقائي - الإصلاح هنا
         req.session.regenerate((err) => {
             if (err) {
                 console.error('❌ خطأ في إعادة توليد الجلسة:', err);
@@ -331,7 +345,6 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
                 username: req.session.username
             });
 
-            // حفظ الجلسة قبل التوجيه
             req.session.save((saveErr) => {
                 if (saveErr) {
                     console.error('❌ خطأ في حفظ الجلسة:', saveErr);
@@ -360,7 +373,7 @@ app.get('/login', redirectIfLoggedIn, (req, res) => {
     });
 });
 
-// عملية تسجيل الدخول - الإصلاح الكامل
+// عملية تسجيل الدخول
 app.post('/login', redirectIfLoggedIn, async (req, res) => {
     try {
         console.log('🚀 بدء تسجيل الدخول...');
@@ -396,12 +409,10 @@ app.post('/login', redirectIfLoggedIn, async (req, res) => {
             });
         }
 
-        // تحديث آخر وقت ظهور
         await User.findByIdAndUpdate(user._id, { 
             lastSeen: new Date()
         });
 
-        // 🔥 الإصلاح: استخدام regenerate لإنشاء جلسة جديدة
         req.session.regenerate((err) => {
             if (err) {
                 console.error('❌ خطأ في إعادة توليد الجلسة:', err);
@@ -411,7 +422,6 @@ app.post('/login', redirectIfLoggedIn, async (req, res) => {
                 });
             }
 
-            // تعيين بيانات الجلسة الجديدة
             req.session.userId = user._id.toString();
             req.session.username = user.username;
             req.session.avatarUrl = user.avatarUrl;
@@ -422,13 +432,11 @@ app.post('/login', redirectIfLoggedIn, async (req, res) => {
                 sessionId: req.sessionID
             });
 
-            // حفظ تفضيلات تسجيل الدخول
             if (rememberMe) {
-                req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 يوم
+                req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000;
                 console.log('💾 تم تفعيل خاصية تذكرني لمدة 30 يوم');
             }
 
-            // 🔥 حفظ الجلسة قبل التوجيه
             req.session.save((saveErr) => {
                 if (saveErr) {
                     console.error('❌ خطأ في حفظ الجلسة:', saveErr);
@@ -452,6 +460,294 @@ app.post('/login', redirectIfLoggedIn, async (req, res) => {
         });
     }
 });
+
+// --- Admin Routes ---
+
+// صفحة تسجيل دخول المسؤول
+app.get('/admin/login', (req, res) => {
+    if (req.session.isAdmin) {
+        return res.redirect('/admin');
+    }
+    
+    res.render('admin/login', {
+        message: null,
+        title: 'تسجيل دخول المسؤول'
+    });
+});
+
+// عملية تسجيل دخول المسؤول
+app.post('/admin/login', async (req, res) => {
+    try {
+        const { adminPassword } = req.body;
+        
+        if (!adminPassword) {
+            return res.render('admin/login', {
+                message: 'الرجاء إدخال كلمة سر المسؤول',
+                title: 'تسجيل دخول المسؤول'
+            });
+        }
+
+        if (adminPassword !== ADMIN_PASSWORD) {
+            return res.render('admin/login', {
+                message: 'كلمة سر المسؤول غير صحيحة',
+                title: 'تسجيل دخول المسؤول'
+            });
+        }
+
+        if (!req.session.userId) {
+            return res.render('admin/login', {
+                message: 'يجب تسجيل الدخول كعضو أولاً',
+                title: 'تسجيل دخول المسؤول'
+            });
+        }
+
+        req.session.isAdmin = true;
+        req.session.save((err) => {
+            if (err) {
+                console.error('Error saving admin session:', err);
+                return res.render('admin/login', {
+                    message: 'حدث خطأ في تسجيل الدخول',
+                    title: 'تسجيل دخول المسؤول'
+                });
+            }
+            
+            console.log(`✅ تم تسجيل دخول المسؤول: ${req.session.username}`);
+            res.redirect('/admin');
+        });
+        
+    } catch (error) {
+        console.error('Admin login error:', error);
+        res.render('admin/login', {
+            message: 'حدث خطأ أثناء تسجيل الدخول',
+            title: 'تسجيل دخول المسؤول'
+        });
+    }
+});
+
+// تسجيل خروج المسؤول
+app.get('/admin/logout', requireAdmin, (req, res) => {
+    req.session.isAdmin = false;
+    req.session.save((err) => {
+        if (err) {
+            console.error('Error saving session after admin logout:', err);
+        }
+        res.redirect('/');
+    });
+});
+
+// لوحة تحكم المسؤول
+app.get('/admin', requireAdmin, async (req, res) => {
+    try {
+        const [users, messages, stats] = await Promise.all([
+            User.find().select('username avatarUrl lastSeen createdAt isBanned').sort({ createdAt: -1 }).lean(),
+            Message.find().populate('userId', 'username').populate('toUserId', 'username').sort({ createdAt: -1 }).limit(50).lean(),
+            Promise.all([
+                User.countDocuments(),
+                Message.countDocuments(),
+                Friendship.countDocuments(),
+                User.countDocuments({ isBanned: true })
+            ])
+        ]);
+
+        res.render('admin/dashboard', {
+            users,
+            messages,
+            stats: {
+                totalUsers: stats[0],
+                totalMessages: stats[1],
+                totalFriendships: stats[2],
+                bannedUsers: stats[3]
+            },
+            username: req.session.username,
+            avatarUrl: req.session.avatarUrl,
+            title: 'لوحة الإدارة'
+        });
+        
+    } catch (error) {
+        console.error('Error loading admin dashboard:', error);
+        res.status(500).render('error', {
+            message: 'حدث خطأ في تحميل لوحة الإدارة',
+            title: 'خطأ'
+        });
+    }
+});
+
+// إدارة المستخدمين
+app.get('/admin/users', requireAdmin, async (req, res) => {
+    try {
+        const users = await User.find()
+            .select('username avatarUrl lastSeen createdAt isBanned')
+            .sort({ createdAt: -1 })
+            .lean();
+
+        res.render('admin/users', {
+            users,
+            username: req.session.username,
+            avatarUrl: req.session.avatarUrl,
+            title: 'إدارة المستخدمين'
+        });
+        
+    } catch (error) {
+        console.error('Error loading admin users:', error);
+        res.status(500).render('error', {
+            message: 'حدث خطأ في تحميل صفحة المستخدمين',
+            title: 'خطأ'
+        });
+    }
+});
+
+// حذف مستخدم
+app.post('/admin/users/delete/:id', requireAdmin, async (req, res) => {
+    try {
+        const userId = req.params.id;
+        
+        // منع حذف المستخدم المسؤول الحالي
+        if (userId === req.session.userId) {
+            return res.json({ success: false, message: 'لا يمكن حذف حسابك الخاص' });
+        }
+
+        await Promise.all([
+            User.findByIdAndDelete(userId),
+            Message.deleteMany({ 
+                $or: [
+                    { userId: userId },
+                    { toUserId: userId }
+                ] 
+            }),
+            Friendship.deleteMany({
+                $or: [
+                    { requester: userId },
+                    { recipient: userId }
+                ]
+            })
+        ]);
+
+        res.json({ success: true, message: 'تم حذف المستخدم وجميع بياناته بنجاح' });
+        
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        res.json({ success: false, message: 'حدث خطأ أثناء حذف المستخدم' });
+    }
+});
+
+// حظر/فك حظر مستخدم
+app.post('/admin/users/ban/:id', requireAdmin, async (req, res) => {
+    try {
+        const userId = req.params.id;
+        const { action } = req.body;
+        
+        // منع حظر المستخدم المسؤول الحالي
+        if (userId === req.session.userId) {
+            return res.json({ success: false, message: 'لا يمكن حظر حسابك الخاص' });
+        }
+
+        const user = await User.findByIdAndUpdate(
+            userId, 
+            { isBanned: action === 'ban' }, 
+            { new: true }
+        );
+
+        if (!user) {
+            return res.json({ success: false, message: 'المستخدم غير موجود' });
+        }
+
+        const message = action === 'ban' ? 'تم حظر المستخدم بنجاح' : 'تم فك حظر المستخدم بنجاح';
+        res.json({ success: true, message, isBanned: user.isBanned });
+        
+    } catch (error) {
+        console.error('Error banning user:', error);
+        res.json({ success: false, message: 'حدث خطأ أثناء حظر المستخدم' });
+    }
+});
+
+// إدارة الرسائل
+app.get('/admin/messages', requireAdmin, async (req, res) => {
+    try {
+        const { page = 1, limit = 50, search = '' } = req.query;
+        
+        let query = {};
+        if (search) {
+            query = {
+                $or: [
+                    { text: { $regex: search, $options: 'i' } },
+                    { username: { $regex: search, $options: 'i' } }
+                ]
+            };
+        }
+
+        const messages = await Message.find(query)
+            .populate('userId', 'username avatarUrl')
+            .populate('toUserId', 'username')
+            .sort({ createdAt: -1 })
+            .limit(parseInt(limit))
+            .skip((parseInt(page) - 1) * parseInt(limit))
+            .lean();
+
+        const totalMessages = await Message.countDocuments(query);
+
+        res.render('admin/messages', {
+            messages,
+            username: req.session.username,
+            avatarUrl: req.session.avatarUrl,
+            title: 'إدارة الرسائل',
+            currentPage: parseInt(page),
+            totalPages: Math.ceil(totalMessages / parseInt(limit)),
+            search
+        });
+        
+    } catch (error) {
+        console.error('Error loading admin messages:', error);
+        res.status(500).render('error', {
+            message: 'حدث خطأ في تحميل الرسائل',
+            title: 'خطأ'
+        });
+    }
+});
+
+// حذف رسالة
+app.post('/admin/messages/delete/:id', requireAdmin, async (req, res) => {
+    try {
+        const messageId = req.params.id;
+        
+        const message = await Message.findByIdAndDelete(messageId);
+        
+        if (!message) {
+            return res.json({ success: false, message: 'الرسالة غير موجودة' });
+        }
+
+        res.json({ success: true, message: 'تم حذف الرسالة بنجاح' });
+        
+    } catch (error) {
+        console.error('Error deleting message:', error);
+        res.json({ success: false, message: 'حدث خطأ أثناء حذف الرسالة' });
+    }
+});
+
+// حذف جميع رسائل مستخدم
+app.post('/admin/messages/delete-user-messages/:userId', requireAdmin, async (req, res) => {
+    try {
+        const userId = req.params.userId;
+        
+        const result = await Message.deleteMany({
+            $or: [
+                { userId: userId },
+                { toUserId: userId }
+            ]
+        });
+
+        res.json({ 
+            success: true, 
+            message: `تم حذف ${result.deletedCount} رسالة بنجاح`,
+            deletedCount: result.deletedCount
+        });
+        
+    } catch (error) {
+        console.error('Error deleting user messages:', error);
+        res.json({ success: false, message: 'حدث خطأ أثناء حذف رسائل المستخدم' });
+    }
+});
+
+// --- باقي المسارات (الملف الأصلي) ---
 
 // التحقق من الجلسة النشطة
 app.get('/check-session', (req, res) => {
@@ -491,7 +787,7 @@ app.get('/unread-count', requireLogin, async (req, res) => {
     }
 });
 
-// الحصول على عدد الرسائل غير المقروءة لصديق معين - الإصلاح هنا
+// الحصول على عدد الرسائل غير المقروءة لصديق معين
 app.get('/unread-count/:friendId', requireLogin, async (req, res) => {
     try {
         const { friendId } = req.params;
@@ -546,6 +842,7 @@ app.get('/debug-session', (req, res) => {
         sessionId: req.sessionID,
         userId: req.session.userId,
         username: req.session.username,
+        isAdmin: req.session.isAdmin,
         sessionData: req.session,
         cookies: req.headers.cookie
     });
@@ -565,12 +862,10 @@ app.post('/auto-login', async (req, res) => {
             return res.json({ success: false, message: 'User not found' });
         }
 
-        // تحديث آخر وقت ظهور
         await User.findByIdAndUpdate(user._id, { 
             lastSeen: new Date()
         });
 
-        // إنشاء الجلسة
         req.session.userId = user._id;
         req.session.username = user.username;
         req.session.avatarUrl = user.avatarUrl;
@@ -597,14 +892,12 @@ app.get('/logout', requireLogin, (req, res) => {
     
     console.log('🚪 تسجيل الخروج:', { userId, username });
     
-    // تحديث آخر وقت ظهور
     if (userId) {
         User.findByIdAndUpdate(userId, { 
             lastSeen: new Date()
         }).catch(err => console.error('Error updating last seen:', err));
     }
     
-    // تدمير الجلسة
     req.session.destroy((err) => {
         if (err) {
             console.error('❌ خطأ في تدمير الجلسة:', err);
@@ -667,8 +960,6 @@ app.get('/profile', requireLogin, async (req, res) => {
 });
 
 // --- Profile Update Routes ---
-
-// تحديث البروفايل
 app.post('/update-profile', requireLogin, upload.single('avatar'), async (req, res) => {
     try {
         const { username } = req.body;
@@ -681,7 +972,6 @@ app.post('/update-profile', requireLogin, upload.single('avatar'), async (req, r
         let message = null;
         let success = null;
 
-        // التحقق من اسم المستخدم
         if (username && username !== user.username) {
             const trimmedUsername = username.trim();
             
@@ -703,7 +993,6 @@ app.post('/update-profile', requireLogin, upload.single('avatar'), async (req, r
             }
         }
 
-        // تحديث الصورة
         if (req.file && !message) {
             try {
                 console.log('🖼️ رفع صورة جديدة...');
@@ -736,13 +1025,11 @@ app.post('/update-profile', requireLogin, upload.single('avatar'), async (req, r
             }
         }
 
-        // حفظ التغييرات
         if (!message) {
             await user.save();
             console.log('✅ تم تحديث بيانات المستخدم:', user.username);
         }
 
-        // جلب الإحصائيات المحدثة
         const [friendsCount, messagesCount] = await Promise.all([
             Friendship.countDocuments({
                 $or: [
@@ -795,7 +1082,6 @@ app.post('/update-password', requireLogin, async (req, res) => {
             return res.redirect('/logout');
         }
 
-        // التحقق من كلمة السر الحالية
         const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
         if (!isCurrentPasswordValid) {
             const [friendsCount, messagesCount] = await Promise.all([
@@ -832,7 +1118,6 @@ app.post('/update-password', requireLogin, async (req, res) => {
             });
         }
 
-        // التحقق من كلمة السر الجديدة
         if (!newPassword || newPassword.length < 4) {
             const [friendsCount, messagesCount] = await Promise.all([
                 Friendship.countDocuments({
@@ -868,13 +1153,11 @@ app.post('/update-password', requireLogin, async (req, res) => {
             });
         }
 
-        // تحديث كلمة السر
         user.passwordHash = await bcrypt.hash(newPassword, 12);
         await user.save();
 
         console.log('✅ تم تحديث كلمة السر للمستخدم:', user.username);
 
-        // جلب الإحصائيات المحدثة
         const [friendsCount, messagesCount] = await Promise.all([
             Friendship.countDocuments({
                 $or: [
@@ -922,7 +1205,6 @@ app.get('/chat', requireLogin, async (req, res) => {
     try {
         console.log('💬 تحميل الشات العام');
         
-        // التحقق مرة أخرى من وجود الجلسة
         if (!req.session.userId) {
             console.log('❌ الجلسة غير موجودة في /chat، التوجيه إلى /login');
             return res.redirect('/login');
@@ -1140,7 +1422,6 @@ app.get('/chat-private/:id', requireLogin, async (req, res) => {
     try {
         const friendId = req.params.id;
         
-        // التحقق من وجود صداقة
         const friendship = await Friendship.findOne({
             $or: [
                 { requester: req.session.userId, recipient: friendId, status: 'accepted' },
@@ -1155,7 +1436,6 @@ app.get('/chat-private/:id', requireLogin, async (req, res) => {
             });
         }
 
-        // تحديث الرسائل كمقروءة عند فتح المحادثة
         await Message.updateMany({
             userId: friendId,
             toUserId: req.session.userId,
@@ -1167,7 +1447,6 @@ app.get('/chat-private/:id', requireLogin, async (req, res) => {
             }
         });
 
-        // جلب الرسائل
         const messages = await Message.find({
             $or: [
                 { userId: req.session.userId, toUserId: friendId },
@@ -1215,7 +1494,6 @@ const io = require('socket.io')(server, {
     }
 });
 
-// استخدام session middleware مع Socket.IO
 io.use((socket, next) => {
     sessionMiddleware(socket.request, {}, next);
 });
@@ -1231,10 +1509,8 @@ io.on('connection', async (socket) => {
 
     console.log(`✅ اتصال جديد: ${session.username} (${session.userId}) - Socket: ${socket.id}`);
 
-    // انضمام إلى غرفة المستخدم
     socket.join(session.userId.toString());
 
-    // تحديث حالة الاتصال
     try {
         await User.findByIdAndUpdate(session.userId, { 
             lastSeen: new Date()
@@ -1243,7 +1519,6 @@ io.on('connection', async (socket) => {
         console.error('Error updating user last seen:', error);
     }
 
-    // استقبال رسائل الشات العام
     socket.on('chat message', async (data) => {
         try {
             if (!data.text || data.text.trim() === '') {
@@ -1262,7 +1537,7 @@ io.on('connection', async (socket) => {
                 avatarUrl: user.avatarUrl,
                 text: data.text.trim(),
                 toUserId: null,
-                read: true // الرسائل العامة تعتبر مقروءة
+                read: true
             };
 
             const message = new Message(messageData);
@@ -1270,7 +1545,6 @@ io.on('connection', async (socket) => {
 
             console.log(`📢 رسالة عامة من ${user.username}: ${data.text.trim()}`);
 
-            // بث الرسالة لجميع المستخدمين المتصلين
             io.emit('chat message', {
                 ...messageData,
                 _id: message._id,
@@ -1283,7 +1557,6 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // استقبال الرسائل الخاصة - الإصلاح الكامل هنا
     socket.on('private message', async (data) => {
         try {
             if (!data.text || data.text.trim() === '' || !data.toUserId) {
@@ -1302,7 +1575,7 @@ io.on('connection', async (socket) => {
                 avatarUrl: user.avatarUrl,
                 text: data.text.trim(),
                 toUserId: data.toUserId,
-                read: false // الرسائل الخاصة غير مقروءة افتراضياً
+                read: false
             };
 
             const message = new Message(messageData);
@@ -1310,7 +1583,6 @@ io.on('connection', async (socket) => {
 
             console.log(`🔒 رسالة خاصة من ${user.username} إلى ${data.toUserId}: ${data.text.trim()}`);
 
-            // حساب عدد الرسائل غير المقروءة بشكل صحيح - الإصلاح هنا
             const unreadCount = await Message.countDocuments({
                 userId: session.userId,
                 toUserId: data.toUserId,
@@ -1319,20 +1591,16 @@ io.on('connection', async (socket) => {
 
             console.log(`📊 عدد الرسائل غير المقروءة من ${user.username} إلى ${data.toUserId}: ${unreadCount}`);
 
-            // إرسال الرسالة للمستخدم المرسل والمستقبل فقط
             const messageToSend = {
                 ...messageData,
                 _id: message._id,
                 createdAt: message.createdAt
             };
 
-            // إرسال للمرسل
             socket.emit('private message', messageToSend);
             
-            // إرسال للمستقبل مع تحديث عدد الرسائل غير المقروءة
             socket.to(data.toUserId).emit('private message', messageToSend);
             
-            // إرسال إشعار بعدد الرسائل غير المقروءة للمستقبل
             socket.to(data.toUserId).emit('new message notification', {
                 from: user.username,
                 fromId: session.userId,
@@ -1347,7 +1615,6 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // تحديث حالة القراءة
     socket.on('mark as read', async (data) => {
         try {
             const { friendId } = data;
@@ -1363,7 +1630,6 @@ io.on('connection', async (socket) => {
                 }
             });
 
-            // إعلام المرسل أن رسائله قد تم قراءتها
             socket.to(friendId).emit('messages read', {
                 readerId: session.userId,
                 readerName: session.username
@@ -1374,7 +1640,6 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // تحديث حالة الكتابة
     socket.on('typing', (data) => {
         if (data.toUserId) {
             socket.to(data.toUserId).emit('typing', {
@@ -1385,7 +1650,6 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // عند انقطاع الاتصال
     socket.on('disconnect', async () => {
         console.log(`❌ انقطع الاتصال: ${session.username} - Socket: ${socket.id}`);
         
@@ -1398,15 +1662,12 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // معالجة الأخطاء
     socket.on('error', (error) => {
         console.error('Socket error:', error);
     });
 });
 
 // --- Error Handling ---
-
-// صفحة 404
 app.use((req, res) => {
     res.status(404).render('error', {
         message: 'الصفحة المطلوبة غير موجودة',
@@ -1414,7 +1675,6 @@ app.use((req, res) => {
     });
 });
 
-// معالج الأخطاء العام
 app.use((error, req, res, next) => {
     console.error('❌ معالج الأخطاء العام:', error);
     res.status(500).render('error', {
@@ -1430,9 +1690,9 @@ server.listen(PORT, () => {
     console.log(`🚀 الخادم يعمل على http://localhost:${PORT}`);
     console.log(`📱 البيئة: ${process.env.NODE_ENV || 'development'}`);
     console.log(`🗄️  قاعدة البيانات: ${process.env.MONGODB_URI || 'mongodb://localhost:27017/chat-app'}`);
+    console.log(`🔐 كلمة سر المسؤول: ${ADMIN_PASSWORD}`);
 });
 
-// معالجة إغلاق الخادم بشكل أنيق
 process.on('SIGTERM', () => {
     console.log('🛑 استقبال SIGTERM، إغلاق الخادم بشكل أنيق');
     server.close(() => {
