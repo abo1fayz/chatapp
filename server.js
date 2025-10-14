@@ -42,19 +42,31 @@ app.use(express.static(path.join(__dirname, 'public')));
 // --- Session Configuration ---
 const sessionMiddleware = session({
     secret: process.env.SESSION_SECRET || 'chat-app-secret-key-2024',
-    resave: true, // تغيير إلى true
-    saveUninitialized: true, // تغيير إلى true
+    resave: false,
+    saveUninitialized: false,
     store: MongoStore.create({ 
         mongoUrl: process.env.MONGODB_URI || 'mongodb://localhost:27017/chat-app',
         ttl: 14 * 24 * 60 * 60 // 14 يوم
     }),
     cookie: { 
-        maxAge: 14 * 24 * 60 * 60 * 1000, // 14 يوم
+        maxAge: 24 * 60 * 60 * 1000, // 24 ساعة
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production'
+        secure: false, // ضع true في production
+        sameSite: 'lax'
     }
 });
 app.use(sessionMiddleware);
+
+// --- Middleware لتتبع الجلسة ---
+app.use((req, res, next) => {
+    console.log('🔍 حالة الجلسة:', {
+        sessionId: req.sessionID?.substring(0, 10) + '...',
+        userId: req.session.userId,
+        username: req.session.username,
+        path: req.path
+    });
+    next();
+});
 
 // --- View Engine Setup ---
 app.set('view engine', 'ejs');
@@ -188,7 +200,6 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
     try {
         console.log('🚀 بدء عملية التسجيل...');
         const username = req.session.pendingUsername;
-        console.log('📝 اسم المستخدم:', username);
         
         if (!username) {
             console.log('❌ لا يوجد اسم مستخدم في الجلسة');
@@ -196,11 +207,9 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
         }
 
         const { password } = req.body;
-        console.log('🔐 كلمة السر:', password ? 'موجودة' : 'مفقودة');
         
         // التحقق من كلمة السر
         if (!password || password.length < 4) {
-            console.log('❌ كلمة السر غير صالحة');
             return res.render('password', { 
                 username, 
                 message: 'كلمة السر يجب أن تكون 4 أحرف على الأقل' 
@@ -212,7 +221,6 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
         // رفع الصورة إذا وجدت
         if (req.file) {
             try {
-                console.log('🖼️ رفع الصورة...');
                 const uploadResult = await new Promise((resolve, reject) => {
                     const stream = cloudinary.uploader.upload_stream(
                         { 
@@ -231,9 +239,8 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
                     stream.end(req.file.buffer);
                 });
                 avatarUrl = uploadResult.secure_url;
-                console.log('✅ تم رفع الصورة:', avatarUrl);
             } catch (uploadError) {
-                console.error('❌ خطأ في رفع الصورة:', uploadError);
+                console.error('Error uploading avatar:', uploadError);
                 return res.render('password', { 
                     username, 
                     message: 'حدث خطأ في رفع الصورة، الرجاء المحاولة مرة أخرى' 
@@ -242,7 +249,6 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
         }
 
         // إنشاء المستخدم
-        console.log('👤 جارٍ إنشاء المستخدم...');
         const hashedPassword = await bcrypt.hash(password, 12);
         const user = new User({ 
             username, 
@@ -252,24 +258,38 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
         });
         
         await user.save();
-        console.log('✅ تم إنشاء المستخدم:', user._id);
 
-        // تسجيل الدخول التلقائي
-        req.session.userId = user._id;
-        req.session.username = user.username;
-        req.session.avatarUrl = user.avatarUrl;
-        req.session.pendingUsername = null;
+        // 🔥 تسجيل الدخول التلقائي - الإصلاح هنا
+        req.session.regenerate((err) => {
+            if (err) {
+                console.error('❌ خطأ في إعادة توليد الجلسة:', err);
+                return res.redirect('/login');
+            }
 
-        console.log('✅ تم إنشاء الجلسة:', {
-            userId: req.session.userId,
-            username: req.session.username
+            req.session.userId = user._id.toString();
+            req.session.username = user.username;
+            req.session.avatarUrl = user.avatarUrl;
+            req.session.pendingUsername = null;
+
+            console.log('✅ تم إنشاء الجلسة الجديدة:', {
+                userId: req.session.userId,
+                username: req.session.username
+            });
+
+            // حفظ الجلسة قبل التوجيه
+            req.session.save((saveErr) => {
+                if (saveErr) {
+                    console.error('❌ خطأ في حفظ الجلسة:', saveErr);
+                    return res.redirect('/login');
+                }
+                
+                console.log('🔄 التوجيه إلى /chat بعد التسجيل');
+                res.redirect('/chat');
+            });
         });
-
-        console.log('🔄 التوجيه إلى /chat');
-        res.redirect('/chat');
         
     } catch (error) {
-        console.error('❌ خطأ في التسجيل:', error);
+        console.error('Registration error:', error);
         res.status(500).render('password', { 
             username: req.session.pendingUsername, 
             message: 'حدث خطأ أثناء إنشاء الحساب، الرجاء المحاولة مرة أخرى' 
@@ -285,20 +305,17 @@ app.get('/login', redirectIfLoggedIn, (req, res) => {
     });
 });
 
-// عملية تسجيل الدخول
+// عملية تسجيل الدخول - الإصلاح الكامل
 app.post('/login', redirectIfLoggedIn, async (req, res) => {
     try {
         console.log('🚀 بدء تسجيل الدخول...');
         const { username, password, rememberMe } = req.body;
         
         console.log('📝 البيانات المستلمة:', { 
-            username: username ? 'موجود' : 'مفقود', 
-            password: password ? 'موجود' : 'مفقود',
-            rememberMe: !!rememberMe 
+            username: username ? username : 'مفقود'
         });
         
         if (!username || !password) {
-            console.log('❌ بيانات ناقصة');
             return res.render('login', { 
                 message: 'الرجاء إدخال اسم المستخدم وكلمة السر',
                 title: 'تسجيل الدخول'
@@ -309,10 +326,7 @@ app.post('/login', redirectIfLoggedIn, async (req, res) => {
             username: new RegExp(`^${username.trim()}$`, 'i') 
         });
         
-        console.log('👤 المستخدم الموجود:', user ? `موجود (${user.username})` : 'غير موجود');
-        
         if (!user) {
-            console.log('❌ مستخدم غير موجود');
             return res.render('login', { 
                 message: 'اسم المستخدم أو كلمة السر غير صحيحة',
                 title: 'تسجيل الدخول'
@@ -320,10 +334,7 @@ app.post('/login', redirectIfLoggedIn, async (req, res) => {
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-        console.log('🔐 كلمة السر:', isPasswordValid ? 'صحيحة' : 'خاطئة');
-        
         if (!isPasswordValid) {
-            console.log('❌ كلمة السر خاطئة');
             return res.render('login', { 
                 message: 'اسم المستخدم أو كلمة السر غير صحيحة',
                 title: 'تسجيل الدخول'
@@ -335,29 +346,51 @@ app.post('/login', redirectIfLoggedIn, async (req, res) => {
             lastSeen: new Date()
         });
 
-        // إنشاء الجلسة
-        req.session.userId = user._id;
-        req.session.username = user.username;
-        req.session.avatarUrl = user.avatarUrl;
+        // 🔥 الإصلاح: استخدام regenerate لإنشاء جلسة جديدة
+        req.session.regenerate((err) => {
+            if (err) {
+                console.error('❌ خطأ في إعادة توليد الجلسة:', err);
+                return res.render('login', { 
+                    message: 'حدث خطأ في تسجيل الدخول',
+                    title: 'تسجيل الدخول'
+                });
+            }
 
-        console.log('✅ تم إنشاء الجلسة:', {
-            userId: req.session.userId,
-            username: req.session.username,
-            sessionID: req.sessionID
+            // تعيين بيانات الجلسة الجديدة
+            req.session.userId = user._id.toString();
+            req.session.username = user.username;
+            req.session.avatarUrl = user.avatarUrl;
+
+            console.log('✅ تم إنشاء الجلسة الجديدة:', {
+                userId: req.session.userId,
+                username: req.session.username,
+                sessionId: req.sessionID
+            });
+
+            // حفظ تفضيلات تسجيل الدخول
+            if (rememberMe) {
+                req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 يوم
+                console.log('💾 تم تفعيل خاصية تذكرني لمدة 30 يوم');
+            }
+
+            // 🔥 حفظ الجلسة قبل التوجيه
+            req.session.save((saveErr) => {
+                if (saveErr) {
+                    console.error('❌ خطأ في حفظ الجلسة:', saveErr);
+                    return res.render('login', { 
+                        message: 'حدث خطأ في تسجيل الدخول',
+                        title: 'تسجيل الدخول'
+                    });
+                }
+                
+                console.log('💾 تم حفظ الجلسة بنجاح');
+                console.log('🔄 التوجيه إلى /chat');
+                res.redirect('/chat');
+            });
         });
-
-        // حفظ تفضيلات تسجيل الدخول في الجلسة
-        if (rememberMe) {
-            req.session.rememberMe = true;
-            req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 يوم
-            console.log('💾 تم تفعيل خاصية تذكرني لمدة 30 يوم');
-        }
-
-        console.log('🔄 التوجيه إلى /chat');
-        res.redirect('/chat');
         
     } catch (error) {
-        console.error('❌ خطأ في تسجيل الدخول:', error);
+        console.error('Login error:', error);
         res.render('login', { 
             message: 'حدث خطأ أثناء تسجيل الدخول، الرجاء المحاولة مرة أخرى',
             title: 'تسجيل الدخول'
@@ -388,12 +421,21 @@ app.get('/check-session', (req, res) => {
     }
 });
 
+// صفحة التصحيح - لفحص الجلسة
+app.get('/debug-session', (req, res) => {
+    res.json({
+        sessionId: req.sessionID,
+        userId: req.session.userId,
+        username: req.session.username,
+        sessionData: req.session,
+        cookies: req.headers.cookie
+    });
+});
+
 // تسجيل الدخول التلقائي
 app.post('/auto-login', async (req, res) => {
     try {
         const { userId } = req.body;
-        
-        console.log('🔐 محاولة تسجيل دخول تلقائي:', userId);
         
         if (!userId) {
             return res.json({ success: false, message: 'User ID is required' });
@@ -401,7 +443,6 @@ app.post('/auto-login', async (req, res) => {
 
         const user = await User.findById(userId);
         if (!user) {
-            console.log('❌ مستخدم غير موجود للتسجيل التلقائي');
             return res.json({ success: false, message: 'User not found' });
         }
 
@@ -415,8 +456,6 @@ app.post('/auto-login', async (req, res) => {
         req.session.username = user.username;
         req.session.avatarUrl = user.avatarUrl;
 
-        console.log('✅ تسجيل دخول تلقائي ناجح:', user.username);
-
         res.json({ 
             success: true, 
             username: user.username,
@@ -424,7 +463,7 @@ app.post('/auto-login', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ خطأ في التسجيل التلقائي:', error);
+        console.error('Auto-login error:', error);
         res.json({ 
             success: false, 
             message: 'Auto-login failed' 
@@ -445,11 +484,6 @@ app.get('/logout', requireLogin, (req, res) => {
             lastSeen: new Date()
         }).catch(err => console.error('Error updating last seen:', err));
     }
-    
-    // مسح البيانات المحفوظة
-    res.clearCookie('rememberMe');
-    res.clearCookie('userId');
-    res.clearCookie('connect.sid');
     
     // تدمير الجلسة
     req.session.destroy((err) => {
@@ -518,6 +552,12 @@ app.get('/chat', requireLogin, async (req, res) => {
     try {
         console.log('💬 تحميل الشات للمستخدم:', req.session.username);
         
+        // التحقق مرة أخرى من وجود الجلسة
+        if (!req.session.userId) {
+            console.log('❌ الجلسة غير موجودة في /chat، التوجيه إلى /login');
+            return res.redirect('/login');
+        }
+
         const messages = await Message.find({ toUserId: null })
             .populate('userId', 'username avatarUrl')
             .sort({ createdAt: 1 })
@@ -540,7 +580,7 @@ app.get('/chat', requireLogin, async (req, res) => {
         });
         
     } catch (error) {
-        console.error('❌ خطأ في تحميل الشات:', error);
+        console.error('Error loading chat:', error);
         res.status(500).render('error', { 
             message: 'حدث خطأ في تحميل الشات',
             title: 'خطأ'
@@ -683,6 +723,8 @@ io.on('connection', async (socket) => {
 });
 
 // --- Error Handling ---
+
+// صفحة 404
 app.use((req, res) => {
     res.status(404).render('error', {
         message: 'الصفحة المطلوبة غير موجودة',
@@ -690,6 +732,7 @@ app.use((req, res) => {
     });
 });
 
+// معالج الأخطاء العام
 app.use((error, req, res, next) => {
     console.error('❌ معالج الأخطاء العام:', error);
     res.status(500).render('error', {
