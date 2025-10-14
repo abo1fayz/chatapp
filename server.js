@@ -690,6 +690,7 @@ app.get('/admin/messages', requireAdmin, async (req, res) => {
             messages,
             username: req.session.username,
             avatarUrl: req.session.avatarUrl,
+            userId: req.session.userId,
             title: 'إدارة الرسائل',
             currentPage: parseInt(page),
             totalPages: Math.ceil(totalMessages / parseInt(limit)),
