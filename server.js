@@ -131,16 +131,67 @@ function redirectIfLoggedIn(req, res, next) {
     });
     
     if (req.session.userId) {
-        console.log('✅ يوجد جلسة نشطة، التوجيه إلى /chat');
-        return res.redirect('/chat');
+        console.log('✅ يوجد جلسة نشطة، التوجيه إلى / (الأصدقاء)');
+        return res.redirect('/');
     }
     next();
 }
 
 // --- Routes ---
 
-// الصفحة الرئيسية
-app.get('/', redirectIfLoggedIn, (req, res) => {
+// الصفحة الرئيسية - الآن تعرض الأصدقاء
+app.get('/', requireLogin, async (req, res) => {
+    try {
+        console.log('🏠 الصفحة الرئيسية - تحميل الأصدقاء');
+        
+        const friends = await Friendship.find({
+            $or: [
+                { requester: req.session.userId, status: 'accepted' },
+                { recipient: req.session.userId, status: 'accepted' }
+            ]
+        })
+        .populate('requester', 'username avatarUrl lastSeen')
+        .populate('recipient', 'username avatarUrl lastSeen')
+        .sort({ createdAt: -1 })
+        .lean();
+
+        const friendList = friends.map(f => {
+            if (f.requester._id.toString() === req.session.userId.toString()) {
+                return {
+                    _id: f.recipient._id,
+                    username: f.recipient.username,
+                    avatarUrl: f.recipient.avatarUrl,
+                    lastSeen: f.recipient.lastSeen
+                };
+            } else {
+                return {
+                    _id: f.requester._id,
+                    username: f.requester.username,
+                    avatarUrl: f.requester.avatarUrl,
+                    lastSeen: f.requester.lastSeen
+                };
+            }
+        });
+
+        res.render('friends', { 
+            friends: friendList,
+            username: req.session.username,
+            avatarUrl: req.session.avatarUrl,
+            userId: req.session.userId,
+            title: 'الأصدقاء'
+        });
+        
+    } catch (error) {
+        console.error('Error loading friends page:', error);
+        res.status(500).render('error', { 
+            message: 'حدث خطأ في تحميل الصفحة الرئيسية',
+            title: 'خطأ'
+        });
+    }
+});
+
+// صفحة التسجيل الأولى
+app.get('/register', redirectIfLoggedIn, (req, res) => {
     res.render('index', { 
         message: null,
         title: 'مرحباً في تطبيق الدردشة'
@@ -186,7 +237,7 @@ app.post('/check-username', redirectIfLoggedIn, async (req, res) => {
 // صفحة إعداد كلمة السر
 app.get('/set-password', redirectIfLoggedIn, (req, res) => {
     if (!req.session.pendingUsername) {
-        return res.redirect('/');
+        return res.redirect('/register');
     }
     
     res.render('password', { 
@@ -203,7 +254,7 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
         
         if (!username) {
             console.log('❌ لا يوجد اسم مستخدم في الجلسة');
-            return res.redirect('/');
+            return res.redirect('/register');
         }
 
         const { password } = req.body;
@@ -283,8 +334,8 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
                     return res.redirect('/login');
                 }
                 
-                console.log('🔄 التوجيه إلى /chat بعد التسجيل');
-                res.redirect('/chat');
+                console.log('🔄 التوجيه إلى / بعد التسجيل');
+                res.redirect('/');
             });
         });
         
@@ -384,8 +435,8 @@ app.post('/login', redirectIfLoggedIn, async (req, res) => {
                 }
                 
                 console.log('💾 تم حفظ الجلسة بنجاح');
-                console.log('🔄 التوجيه إلى /chat');
-                res.redirect('/chat');
+                console.log('🔄 التوجيه إلى /');
+                res.redirect('/');
             });
         });
         
@@ -411,7 +462,7 @@ app.get('/check-session', (req, res) => {
         res.json({ 
             success: true, 
             message: 'يوجد جلسة نشطة',
-            redirect: '/chat'
+            redirect: '/'
         });
     } else {
         res.json({ 
@@ -546,6 +597,7 @@ app.get('/profile', requireLogin, async (req, res) => {
         });
     }
 });
+
 // --- Profile Update Routes ---
 
 // تحديث البروفايل
@@ -800,7 +852,7 @@ app.post('/update-password', requireLogin, async (req, res) => {
 // --- Chat Routes ---
 app.get('/chat', requireLogin, async (req, res) => {
     try {
-        console.log('💬 تحميل الشات للمستخدم:', req.session.username);
+        console.log('💬 تحميل الشات العام');
         
         // التحقق مرة أخرى من وجود الجلسة
         if (!req.session.userId) {
@@ -1012,55 +1064,6 @@ app.post('/friend-cancel/:id', requireLogin, async (req, res) => {
     } catch (error) {
         console.error('Error canceling friend request:', error);
         res.status(500).json({ error: 'حدث خطأ في إلغاء طلب الصداقة' });
-    }
-});
-
-// عرض الأصدقاء
-app.get('/friends', requireLogin, async (req, res) => {
-    try {
-        const friends = await Friendship.find({
-            $or: [
-                { requester: req.session.userId, status: 'accepted' },
-                { recipient: req.session.userId, status: 'accepted' }
-            ]
-        })
-        .populate('requester', 'username avatarUrl lastSeen')
-        .populate('recipient', 'username avatarUrl lastSeen')
-        .sort({ createdAt: -1 })
-        .lean();
-
-        const friendList = friends.map(f => {
-            if (f.requester._id.toString() === req.session.userId.toString()) {
-                return {
-                    _id: f.recipient._id,
-                    username: f.recipient.username,
-                    avatarUrl: f.recipient.avatarUrl,
-                    lastSeen: f.recipient.lastSeen
-                };
-            } else {
-                return {
-                    _id: f.requester._id,
-                    username: f.requester.username,
-                    avatarUrl: f.requester.avatarUrl,
-                    lastSeen: f.requester.lastSeen
-                };
-            }
-        });
-
-        res.render('friends', { 
-            friends: friendList,
-            username: req.session.username,
-            avatarUrl: req.session.avatarUrl,
-            userId: req.session.userId,
-            title: 'الأصدقاء'
-        });
-        
-    } catch (error) {
-        console.error('Error loading friends:', error);
-        res.status(500).render('error', { 
-            message: 'حدث خطأ في تحميل قائمة الأصدقاء',
-            title: 'خطأ'
-        });
     }
 });
 
