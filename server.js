@@ -42,13 +42,14 @@ app.use(express.static(path.join(__dirname, 'public')));
 // --- Session Configuration ---
 const sessionMiddleware = session({
     secret: process.env.SESSION_SECRET || 'chat-app-secret-key-2024',
-    resave: false,
-    saveUninitialized: false,
+    resave: true, // تغيير إلى true
+    saveUninitialized: true, // تغيير إلى true
     store: MongoStore.create({ 
-        mongoUrl: process.env.MONGODB_URI || 'mongodb://localhost:27017/chat-app'
+        mongoUrl: process.env.MONGODB_URI || 'mongodb://localhost:27017/chat-app',
+        ttl: 14 * 24 * 60 * 60 // 14 يوم
     }),
     cookie: { 
-        maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+        maxAge: 14 * 24 * 60 * 60 * 1000, // 14 يوم
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production'
     }
@@ -75,7 +76,6 @@ const upload = multer({
 });
 
 // --- Helper Functions ---
-// دالة حساب الوقت المنقضي
 app.locals.getTimeAgo = function(date) {
     if (!date) return 'غير معروف';
     
@@ -92,7 +92,6 @@ app.locals.getTimeAgo = function(date) {
     return new Date(date).toLocaleDateString('ar-SA');
 };
 
-// دالة التحقق من حالة الاتصال
 app.locals.isUserOnline = function(lastSeen) {
     if (!lastSeen) return false;
     return Date.now() - new Date(lastSeen).getTime() < 5 * 60 * 1000; // 5 minutes
@@ -100,14 +99,27 @@ app.locals.isUserOnline = function(lastSeen) {
 
 // --- Authentication Middleware ---
 function requireLogin(req, res, next) {
+    console.log('🔐 التحقق من المصادقة:', {
+        path: req.path,
+        hasSession: !!req.session.userId,
+        userId: req.session.userId
+    });
+    
     if (!req.session.userId) {
+        console.log('❌ لم يتم المصادقة، التوجيه إلى /login');
         return res.redirect('/login');
     }
     next();
 }
 
 function redirectIfLoggedIn(req, res, next) {
+    console.log('🔍 التحقق من وجود جلسة نشطة:', {
+        path: req.path,
+        hasSession: !!req.session.userId
+    });
+    
     if (req.session.userId) {
+        console.log('✅ يوجد جلسة نشطة، التوجيه إلى /chat');
         return res.redirect('/chat');
     }
     next();
@@ -174,15 +186,21 @@ app.get('/set-password', redirectIfLoggedIn, (req, res) => {
 // عملية التسجيل
 app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, res) => {
     try {
+        console.log('🚀 بدء عملية التسجيل...');
         const username = req.session.pendingUsername;
+        console.log('📝 اسم المستخدم:', username);
+        
         if (!username) {
+            console.log('❌ لا يوجد اسم مستخدم في الجلسة');
             return res.redirect('/');
         }
 
         const { password } = req.body;
+        console.log('🔐 كلمة السر:', password ? 'موجودة' : 'مفقودة');
         
         // التحقق من كلمة السر
         if (!password || password.length < 4) {
+            console.log('❌ كلمة السر غير صالحة');
             return res.render('password', { 
                 username, 
                 message: 'كلمة السر يجب أن تكون 4 أحرف على الأقل' 
@@ -194,6 +212,7 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
         // رفع الصورة إذا وجدت
         if (req.file) {
             try {
+                console.log('🖼️ رفع الصورة...');
                 const uploadResult = await new Promise((resolve, reject) => {
                     const stream = cloudinary.uploader.upload_stream(
                         { 
@@ -212,8 +231,9 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
                     stream.end(req.file.buffer);
                 });
                 avatarUrl = uploadResult.secure_url;
+                console.log('✅ تم رفع الصورة:', avatarUrl);
             } catch (uploadError) {
-                console.error('Error uploading avatar:', uploadError);
+                console.error('❌ خطأ في رفع الصورة:', uploadError);
                 return res.render('password', { 
                     username, 
                     message: 'حدث خطأ في رفع الصورة، الرجاء المحاولة مرة أخرى' 
@@ -222,6 +242,7 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
         }
 
         // إنشاء المستخدم
+        console.log('👤 جارٍ إنشاء المستخدم...');
         const hashedPassword = await bcrypt.hash(password, 12);
         const user = new User({ 
             username, 
@@ -231,6 +252,7 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
         });
         
         await user.save();
+        console.log('✅ تم إنشاء المستخدم:', user._id);
 
         // تسجيل الدخول التلقائي
         req.session.userId = user._id;
@@ -238,20 +260,16 @@ app.post('/register', redirectIfLoggedIn, upload.single('avatar'), async (req, r
         req.session.avatarUrl = user.avatarUrl;
         req.session.pendingUsername = null;
 
-        // حفظ تفضيلات تسجيل الدخول
-        res.cookie('rememberMe', 'true', { 
-            maxAge: 1000 * 60 * 60 * 24 * 30, // 30 يوم
-            httpOnly: true 
-        });
-        res.cookie('userId', user._id.toString(), { 
-            maxAge: 1000 * 60 * 60 * 24 * 30,
-            httpOnly: true 
+        console.log('✅ تم إنشاء الجلسة:', {
+            userId: req.session.userId,
+            username: req.session.username
         });
 
+        console.log('🔄 التوجيه إلى /chat');
         res.redirect('/chat');
         
     } catch (error) {
-        console.error('Registration error:', error);
+        console.error('❌ خطأ في التسجيل:', error);
         res.status(500).render('password', { 
             username: req.session.pendingUsername, 
             message: 'حدث خطأ أثناء إنشاء الحساب، الرجاء المحاولة مرة أخرى' 
@@ -270,9 +288,17 @@ app.get('/login', redirectIfLoggedIn, (req, res) => {
 // عملية تسجيل الدخول
 app.post('/login', redirectIfLoggedIn, async (req, res) => {
     try {
+        console.log('🚀 بدء تسجيل الدخول...');
         const { username, password, rememberMe } = req.body;
         
+        console.log('📝 البيانات المستلمة:', { 
+            username: username ? 'موجود' : 'مفقود', 
+            password: password ? 'موجود' : 'مفقود',
+            rememberMe: !!rememberMe 
+        });
+        
         if (!username || !password) {
+            console.log('❌ بيانات ناقصة');
             return res.render('login', { 
                 message: 'الرجاء إدخال اسم المستخدم وكلمة السر',
                 title: 'تسجيل الدخول'
@@ -283,7 +309,10 @@ app.post('/login', redirectIfLoggedIn, async (req, res) => {
             username: new RegExp(`^${username.trim()}$`, 'i') 
         });
         
+        console.log('👤 المستخدم الموجود:', user ? `موجود (${user.username})` : 'غير موجود');
+        
         if (!user) {
+            console.log('❌ مستخدم غير موجود');
             return res.render('login', { 
                 message: 'اسم المستخدم أو كلمة السر غير صحيحة',
                 title: 'تسجيل الدخول'
@@ -291,7 +320,10 @@ app.post('/login', redirectIfLoggedIn, async (req, res) => {
         }
 
         const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+        console.log('🔐 كلمة السر:', isPasswordValid ? 'صحيحة' : 'خاطئة');
+        
         if (!isPasswordValid) {
+            console.log('❌ كلمة السر خاطئة');
             return res.render('login', { 
                 message: 'اسم المستخدم أو كلمة السر غير صحيحة',
                 title: 'تسجيل الدخول'
@@ -308,25 +340,50 @@ app.post('/login', redirectIfLoggedIn, async (req, res) => {
         req.session.username = user.username;
         req.session.avatarUrl = user.avatarUrl;
 
-        // حفظ تفضيلات تسجيل الدخول
+        console.log('✅ تم إنشاء الجلسة:', {
+            userId: req.session.userId,
+            username: req.session.username,
+            sessionID: req.sessionID
+        });
+
+        // حفظ تفضيلات تسجيل الدخول في الجلسة
         if (rememberMe) {
-            res.cookie('rememberMe', 'true', { 
-                maxAge: 1000 * 60 * 60 * 24 * 30,
-                httpOnly: true 
-            });
-            res.cookie('userId', user._id.toString(), { 
-                maxAge: 1000 * 60 * 60 * 24 * 30,
-                httpOnly: true 
-            });
+            req.session.rememberMe = true;
+            req.session.cookie.maxAge = 30 * 24 * 60 * 60 * 1000; // 30 يوم
+            console.log('💾 تم تفعيل خاصية تذكرني لمدة 30 يوم');
         }
 
+        console.log('🔄 التوجيه إلى /chat');
         res.redirect('/chat');
         
     } catch (error) {
-        console.error('Login error:', error);
+        console.error('❌ خطأ في تسجيل الدخول:', error);
         res.render('login', { 
             message: 'حدث خطأ أثناء تسجيل الدخول، الرجاء المحاولة مرة أخرى',
             title: 'تسجيل الدخول'
+        });
+    }
+});
+
+// التحقق من الجلسة النشطة
+app.get('/check-session', (req, res) => {
+    const hasActiveSession = !!req.session.userId;
+    console.log('🔍 فحص الجلسة:', {
+        hasActiveSession,
+        userId: req.session.userId,
+        username: req.session.username
+    });
+    
+    if (hasActiveSession) {
+        res.json({ 
+            success: true, 
+            message: 'يوجد جلسة نشطة',
+            redirect: '/chat'
+        });
+    } else {
+        res.json({ 
+            success: false, 
+            message: 'لا يوجد جلسة نشطة'
         });
     }
 });
@@ -336,12 +393,15 @@ app.post('/auto-login', async (req, res) => {
     try {
         const { userId } = req.body;
         
+        console.log('🔐 محاولة تسجيل دخول تلقائي:', userId);
+        
         if (!userId) {
             return res.json({ success: false, message: 'User ID is required' });
         }
 
         const user = await User.findById(userId);
         if (!user) {
+            console.log('❌ مستخدم غير موجود للتسجيل التلقائي');
             return res.json({ success: false, message: 'User not found' });
         }
 
@@ -355,6 +415,8 @@ app.post('/auto-login', async (req, res) => {
         req.session.username = user.username;
         req.session.avatarUrl = user.avatarUrl;
 
+        console.log('✅ تسجيل دخول تلقائي ناجح:', user.username);
+
         res.json({ 
             success: true, 
             username: user.username,
@@ -362,7 +424,7 @@ app.post('/auto-login', async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Auto-login error:', error);
+        console.error('❌ خطأ في التسجيل التلقائي:', error);
         res.json({ 
             success: false, 
             message: 'Auto-login failed' 
@@ -373,6 +435,9 @@ app.post('/auto-login', async (req, res) => {
 // تسجيل الخروج
 app.get('/logout', requireLogin, (req, res) => {
     const userId = req.session.userId;
+    const username = req.session.username;
+    
+    console.log('🚪 تسجيل الخروج:', { userId, username });
     
     // تحديث آخر وقت ظهور
     if (userId) {
@@ -381,7 +446,7 @@ app.get('/logout', requireLogin, (req, res) => {
         }).catch(err => console.error('Error updating last seen:', err));
     }
     
-    // مسح الكوكيز
+    // مسح البيانات المحفوظة
     res.clearCookie('rememberMe');
     res.clearCookie('userId');
     res.clearCookie('connect.sid');
@@ -389,16 +454,16 @@ app.get('/logout', requireLogin, (req, res) => {
     // تدمير الجلسة
     req.session.destroy((err) => {
         if (err) {
-            console.error('Error destroying session:', err);
+            console.error('❌ خطأ في تدمير الجلسة:', err);
             return res.status(500).send('خطأ في تسجيل الخروج');
         }
+        
+        console.log('✅ تم تسجيل الخروج بنجاح');
         res.redirect('/login');
     });
 });
 
 // --- Profile Routes ---
-
-// صفحة البروفايل
 app.get('/profile', requireLogin, async (req, res) => {
     try {
         const user = await User.findById(req.session.userId);
@@ -406,7 +471,6 @@ app.get('/profile', requireLogin, async (req, res) => {
             return res.redirect('/logout');
         }
 
-        // جلب إحصائيات المستخدم
         const [friendsCount, messagesCount] = await Promise.all([
             Friendship.countDocuments({
                 $or: [
@@ -449,222 +513,18 @@ app.get('/profile', requireLogin, async (req, res) => {
     }
 });
 
-// تحديث البروفايل
-app.post('/update-profile', requireLogin, upload.single('avatar'), async (req, res) => {
-    try {
-        const { username } = req.body;
-        const user = await User.findById(req.session.userId);
-        
-        if (!user) {
-            return res.redirect('/logout');
-        }
-
-        let message = null;
-        let success = null;
-
-        // التحقق من اسم المستخدم
-        if (username && username !== user.username) {
-            const trimmedUsername = username.trim();
-            
-            if (trimmedUsername.length < 3) {
-                message = 'اسم المستخدم يجب أن يكون 3 أحرف على الأقل';
-            } else {
-                const existingUser = await User.findOne({ 
-                    username: new RegExp(`^${trimmedUsername}$`, 'i'),
-                    _id: { $ne: user._id }
-                });
-                
-                if (existingUser) {
-                    message = 'اسم المستخدم مستخدم بالفعل';
-                } else {
-                    user.username = trimmedUsername;
-                    req.session.username = trimmedUsername;
-                    success = 'تم تحديث البروفايل بنجاح';
-                }
-            }
-        }
-
-        // تحديث الصورة
-        if (req.file && !message) {
-            try {
-                const uploadResult = await new Promise((resolve, reject) => {
-                    const stream = cloudinary.uploader.upload_stream(
-                        { 
-                            folder: 'chat-app/avatars',
-                            transformation: [
-                                { width: 200, height: 200, crop: 'fill' },
-                                { quality: 'auto' },
-                                { format: 'webp' }
-                            ]
-                        }, 
-                        (err, result) => {
-                            if (err) reject(err); 
-                            else resolve(result);
-                        }
-                    );
-                    stream.end(req.file.buffer);
-                });
-                
-                user.avatarUrl = uploadResult.secure_url;
-                req.session.avatarUrl = uploadResult.secure_url;
-                success = success || 'تم تحديث البروفايل بنجاح';
-                
-            } catch (uploadError) {
-                console.error('Error uploading avatar:', uploadError);
-                message = message || 'حدث خطأ في رفع الصورة';
-            }
-        }
-
-        // حفظ التغييرات
-        if (!message) {
-            await user.save();
-        }
-
-        // جلب الإحصائيات المحدثة
-        const [friendsCount, messagesCount] = await Promise.all([
-            Friendship.countDocuments({
-                $or: [
-                    { requester: req.session.userId, status: 'accepted' },
-                    { recipient: req.session.userId, status: 'accepted' }
-                ]
-            }),
-            Message.countDocuments({
-                $or: [
-                    { userId: req.session.userId },
-                    { toUserId: req.session.userId }
-                ]
-            })
-        ]);
-
-        res.render('profile', {
-            user: {
-                _id: user._id,
-                username: user.username,
-                avatarUrl: user.avatarUrl,
-                createdAt: user.createdAt
-            },
-            username: req.session.username,
-            avatarUrl: req.session.avatarUrl,
-            message: message,
-            success: success,
-            passwordError: null,
-            stats: {
-                friendsCount,
-                messagesCount
-            }
-        });
-        
-    } catch (error) {
-        console.error('Error updating profile:', error);
-        res.status(500).render('error', { 
-            message: 'حدث خطأ في تحديث البروفايل',
-            title: 'خطأ'
-        });
-    }
-});
-
-// تحديث كلمة السر
-app.post('/update-password', requireLogin, async (req, res) => {
-    try {
-        const { currentPassword, newPassword } = req.body;
-        const user = await User.findById(req.session.userId);
-        
-        if (!user) {
-            return res.redirect('/logout');
-        }
-
-        // التحقق من كلمة السر الحالية
-        const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.passwordHash);
-        if (!isCurrentPasswordValid) {
-            return res.render('profile', {
-                user: {
-                    _id: user._id,
-                    username: user.username,
-                    avatarUrl: user.avatarUrl,
-                    createdAt: user.createdAt
-                },
-                username: req.session.username,
-                avatarUrl: req.session.avatarUrl,
-                message: null,
-                success: null,
-                passwordError: 'كلمة السر الحالية غير صحيحة'
-            });
-        }
-
-        // التحقق من كلمة السر الجديدة
-        if (!newPassword || newPassword.length < 4) {
-            return res.render('profile', {
-                user: {
-                    _id: user._id,
-                    username: user.username,
-                    avatarUrl: user.avatarUrl,
-                    createdAt: user.createdAt
-                },
-                username: req.session.username,
-                avatarUrl: req.session.avatarUrl,
-                message: null,
-                success: null,
-                passwordError: 'كلمة السر الجديدة يجب أن تكون 4 أحرف على الأقل'
-            });
-        }
-
-        // تحديث كلمة السر
-        user.passwordHash = await bcrypt.hash(newPassword, 12);
-        await user.save();
-
-        // جلب الإحصائيات المحدثة
-        const [friendsCount, messagesCount] = await Promise.all([
-            Friendship.countDocuments({
-                $or: [
-                    { requester: req.session.userId, status: 'accepted' },
-                    { recipient: req.session.userId, status: 'accepted' }
-                ]
-            }),
-            Message.countDocuments({
-                $or: [
-                    { userId: req.session.userId },
-                    { toUserId: req.session.userId }
-                ]
-            })
-        ]);
-
-        res.render('profile', {
-            user: {
-                _id: user._id,
-                username: user.username,
-                avatarUrl: user.avatarUrl,
-                createdAt: user.createdAt
-            },
-            username: req.session.username,
-            avatarUrl: req.session.avatarUrl,
-            message: null,
-            success: 'تم تحديث كلمة السر بنجاح',
-            passwordError: null,
-            stats: {
-                friendsCount,
-                messagesCount
-            }
-        });
-        
-    } catch (error) {
-        console.error('Error updating password:', error);
-        res.status(500).render('error', { 
-            message: 'حدث خطأ في تحديث كلمة السر',
-            title: 'خطأ'
-        });
-    }
-});
-
 // --- Chat Routes ---
-
-// الشات العام
 app.get('/chat', requireLogin, async (req, res) => {
     try {
+        console.log('💬 تحميل الشات للمستخدم:', req.session.username);
+        
         const messages = await Message.find({ toUserId: null })
             .populate('userId', 'username avatarUrl')
             .sort({ createdAt: 1 })
             .limit(100)
             .lean();
+
+        console.log('✅ تم تحميل الرسائل:', messages.length);
 
         res.render('chat', {
             username: req.session.username,
@@ -680,7 +540,7 @@ app.get('/chat', requireLogin, async (req, res) => {
         });
         
     } catch (error) {
-        console.error('Error loading chat:', error);
+        console.error('❌ خطأ في تحميل الشات:', error);
         res.status(500).render('error', { 
             message: 'حدث خطأ في تحميل الشات',
             title: 'خطأ'
@@ -689,8 +549,6 @@ app.get('/chat', requireLogin, async (req, res) => {
 });
 
 // --- Friends Routes ---
-
-// عرض جميع المستخدمين
 app.get('/users', requireLogin, async (req, res) => {
     try {
         const users = await User.find({ _id: { $ne: req.session.userId } })
@@ -698,7 +556,6 @@ app.get('/users', requireLogin, async (req, res) => {
             .sort({ username: 1 })
             .lean();
 
-        // جلب بيانات الصداقة
         const [sentRequests, receivedRequests, friends] = await Promise.all([
             Friendship.find({ requester: req.session.userId }).lean(),
             Friendship.find({ recipient: req.session.userId }).lean(),
@@ -736,248 +593,6 @@ app.get('/users', requireLogin, async (req, res) => {
     }
 });
 
-// إرسال طلب صداقة
-app.post('/friend-request/:id', requireLogin, async (req, res) => {
-    try {
-        const recipientId = req.params.id;
-
-        // التحقق من عدم إرسال طلب لنفس المستخدم
-        if (recipientId === req.session.userId.toString()) {
-            return res.status(400).json({ error: 'لا يمكن إرسال طلب صداقة لنفسك' });
-        }
-
-        // التحقق من وجود طلب مسبق
-        const existingFriendship = await Friendship.findOne({
-            $or: [
-                { requester: req.session.userId, recipient: recipientId },
-                { requester: recipientId, recipient: req.session.userId }
-            ]
-        });
-
-        if (existingFriendship) {
-            return res.status(400).json({ 
-                error: 'تم إرسال طلب مسبقاً أو أنكم أصدقاء بالفعل' 
-            });
-        }
-
-        // إنشاء طلب الصداقة
-        const friendship = new Friendship({ 
-            requester: req.session.userId, 
-            recipient: recipientId 
-        });
-        await friendship.save();
-
-        res.json({ success: true, message: 'تم إرسال طلب الصداقة بنجاح' });
-        
-    } catch (error) {
-        console.error('Error sending friend request:', error);
-        res.status(500).json({ error: 'حدث خطأ في إرسال طلب الصداقة' });
-    }
-});
-
-// عرض طلبات الصداقة
-app.get('/friend-requests', requireLogin, async (req, res) => {
-    try {
-        const requests = await Friendship.find({ 
-            recipient: req.session.userId, 
-            status: 'pending' 
-        })
-        .populate('requester', 'username avatarUrl createdAt')
-        .sort({ createdAt: -1 })
-        .lean();
-
-        res.render('friend-requests', { 
-            requests,
-            username: req.session.username,
-            avatarUrl: req.session.avatarUrl,
-            title: 'طلبات الصداقة'
-        });
-        
-    } catch (error) {
-        console.error('Error loading friend requests:', error);
-        res.status(500).render('error', { 
-            message: 'حدث خطأ في تحميل طلبات الصداقة',
-            title: 'خطأ'
-        });
-    }
-});
-
-// قبول طلب صداقة
-app.post('/friend-accept/:id', requireLogin, async (req, res) => {
-    try {
-        const requesterId = req.params.id;
-        const friendship = await Friendship.findOne({ 
-            requester: requesterId, 
-            recipient: req.session.userId,
-            status: 'pending'
-        });
-        
-        if (!friendship) {
-            return res.status(404).json({ error: 'الطلب غير موجود' });
-        }
-        
-        friendship.status = 'accepted';
-        await friendship.save();
-
-        res.json({ success: true, message: 'تم قبول طلب الصداقة' });
-        
-    } catch (error) {
-        console.error('Error accepting friend request:', error);
-        res.status(500).json({ error: 'حدث خطأ في قبول طلب الصداقة' });
-    }
-});
-
-// رفض طلب صداقة
-app.post('/friend-reject/:id', requireLogin, async (req, res) => {
-    try {
-        const requesterId = req.params.id;
-        const result = await Friendship.findOneAndDelete({ 
-            requester: requesterId, 
-            recipient: req.session.userId 
-        });
-
-        if (!result) {
-            return res.status(404).json({ error: 'الطلب غير موجود' });
-        }
-
-        res.json({ success: true, message: 'تم رفض طلب الصداقة' });
-        
-    } catch (error) {
-        console.error('Error rejecting friend request:', error);
-        res.status(500).json({ error: 'حدث خطأ في رفض طلب الصداقة' });
-    }
-});
-
-// إلغاء طلب صداقة
-app.post('/friend-cancel/:id', requireLogin, async (req, res) => {
-    try {
-        const recipientId = req.params.id;
-        const result = await Friendship.findOneAndDelete({ 
-            requester: req.session.userId, 
-            recipient: recipientId 
-        });
-
-        if (!result) {
-            return res.status(404).json({ error: 'الطلب غير موجود' });
-        }
-
-        res.json({ success: true, message: 'تم إلغاء طلب الصداقة' });
-        
-    } catch (error) {
-        console.error('Error canceling friend request:', error);
-        res.status(500).json({ error: 'حدث خطأ في إلغاء طلب الصداقة' });
-    }
-});
-
-// عرض الأصدقاء
-app.get('/friends', requireLogin, async (req, res) => {
-    try {
-        const friends = await Friendship.find({
-            $or: [
-                { requester: req.session.userId, status: 'accepted' },
-                { recipient: req.session.userId, status: 'accepted' }
-            ]
-        })
-        .populate('requester', 'username avatarUrl lastSeen')
-        .populate('recipient', 'username avatarUrl lastSeen')
-        .sort({ createdAt: -1 })
-        .lean();
-
-        const friendList = friends.map(f => {
-            if (f.requester._id.toString() === req.session.userId.toString()) {
-                return {
-                    _id: f.recipient._id,
-                    username: f.recipient.username,
-                    avatarUrl: f.recipient.avatarUrl,
-                    lastSeen: f.recipient.lastSeen
-                };
-            } else {
-                return {
-                    _id: f.requester._id,
-                    username: f.requester.username,
-                    avatarUrl: f.requester.avatarUrl,
-                    lastSeen: f.requester.lastSeen
-                };
-            }
-        });
-
-        res.render('friends', { 
-            friends: friendList,
-            username: req.session.username,
-            avatarUrl: req.session.avatarUrl,
-            userId: req.session.userId,
-            title: 'الأصدقاء'
-        });
-        
-    } catch (error) {
-        console.error('Error loading friends:', error);
-        res.status(500).render('error', { 
-            message: 'حدث خطأ في تحميل قائمة الأصدقاء',
-            title: 'خطأ'
-        });
-    }
-});
-
-// الدردشة الخاصة
-app.get('/chat-private/:id', requireLogin, async (req, res) => {
-    try {
-        const friendId = req.params.id;
-        
-        // التحقق من وجود صداقة
-        const friendship = await Friendship.findOne({
-            $or: [
-                { requester: req.session.userId, recipient: friendId, status: 'accepted' },
-                { requester: friendId, recipient: req.session.userId, status: 'accepted' }
-            ]
-        }).populate('requester recipient');
-
-        if (!friendship) {
-            return res.status(403).render('error', { 
-                message: 'لا يمكنك الدردشة مع هذا المستخدم',
-                title: 'خطأ في الصلاحيات'
-            });
-        }
-
-        // جلب الرسائل
-        const messages = await Message.find({
-            $or: [
-                { userId: req.session.userId, toUserId: friendId },
-                { userId: friendId, toUserId: req.session.userId }
-            ]
-        })
-        .populate('userId', 'username avatarUrl')
-        .sort({ createdAt: 1 })
-        .limit(100)
-        .lean();
-
-        const friend = friendship.requester._id.toString() === friendId ? 
-            friendship.requester : friendship.recipient;
-
-        res.render('chat-private', {
-            messages: messages.map(msg => ({
-                ...msg,
-                username: msg.userId.username,
-                avatarUrl: msg.userId.avatarUrl,
-                userId: msg.userId._id.toString()
-            })),
-            friendId,
-            friendUsername: friend.username,
-            friendAvatar: friend.avatarUrl,
-            userId: req.session.userId.toString(),
-            username: req.session.username,
-            avatarUrl: req.session.avatarUrl || '/default-avatar.png',
-            title: `الدردشة مع ${friend.username}`
-        });
-        
-    } catch (error) {
-        console.error('Error loading private chat:', error);
-        res.status(500).render('error', { 
-            message: 'حدث خطأ في تحميل المحادثة',
-            title: 'خطأ'
-        });
-    }
-});
-
 // --- Socket.IO Setup ---
 const io = require('socket.io')(server, {
     cors: {
@@ -995,12 +610,12 @@ io.on('connection', async (socket) => {
     const session = socket.request.session;
     
     if (!session.userId) {
-        console.log('❌ Unauthenticated socket connection - disconnecting');
+        console.log('❌ اتصال غير مصرح به - قطع الاتصال');
         socket.disconnect();
         return;
     }
 
-    console.log(`✅ User connected: ${session.username} (${session.userId}) - Socket: ${socket.id}`);
+    console.log(`✅ اتصال جديد: ${session.username} (${session.userId}) - Socket: ${socket.id}`);
 
     // انضمام إلى غرفة المستخدم
     socket.join(session.userId.toString());
@@ -1038,7 +653,7 @@ io.on('connection', async (socket) => {
             const message = new Message(messageData);
             await message.save();
 
-            console.log(`📢 Public message from ${user.username}: ${data.text.trim()}`);
+            console.log(`📢 رسالة عامة من ${user.username}: ${data.text.trim()}`);
 
             // بث الرسالة لجميع المستخدمين المتصلين
             io.emit('chat message', {
@@ -1053,62 +668,9 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // استقبال الرسائل الخاصة
-    socket.on('private message', async (data) => {
-        try {
-            if (!data.text || data.text.trim() === '' || !data.toUserId) {
-                return;
-            }
-
-            const user = await User.findById(session.userId);
-            if (!user) {
-                console.log('User not found for private message');
-                return;
-            }
-
-            const messageData = {
-                userId: session.userId,
-                username: user.username,
-                avatarUrl: user.avatarUrl,
-                text: data.text.trim(),
-                toUserId: data.toUserId
-            };
-
-            const message = new Message(messageData);
-            await message.save();
-
-            console.log(`🔒 Private message from ${user.username} to ${data.toUserId}: ${data.text.trim()}`);
-
-            // إرسال الرسالة للمستخدم المرسل والمستقبل فقط
-            const messageToSend = {
-                ...messageData,
-                _id: message._id,
-                createdAt: message.createdAt
-            };
-
-            socket.emit('private message', messageToSend);
-            socket.to(data.toUserId).emit('private message', messageToSend);
-
-        } catch (error) {
-            console.error('Error handling private message:', error);
-            socket.emit('error', { message: 'Failed to send private message' });
-        }
-    });
-
-    // تحديث حالة الكتابة
-    socket.on('typing', (data) => {
-        if (data.toUserId) {
-            socket.to(data.toUserId).emit('typing', {
-                userId: session.userId,
-                username: session.username,
-                isTyping: data.isTyping
-            });
-        }
-    });
-
     // عند انقطاع الاتصال
     socket.on('disconnect', async () => {
-        console.log(`❌ User disconnected: ${session.username} - Socket: ${socket.id}`);
+        console.log(`❌ انقطع الاتصال: ${session.username} - Socket: ${socket.id}`);
         
         try {
             await User.findByIdAndUpdate(session.userId, { 
@@ -1118,16 +680,9 @@ io.on('connection', async (socket) => {
             console.error('Error updating last seen on disconnect:', error);
         }
     });
-
-    // معالجة الأخطاء
-    socket.on('error', (error) => {
-        console.error('Socket error:', error);
-    });
 });
 
 // --- Error Handling ---
-
-// صفحة 404
 app.use((req, res) => {
     res.status(404).render('error', {
         message: 'الصفحة المطلوبة غير موجودة',
@@ -1135,9 +690,8 @@ app.use((req, res) => {
     });
 });
 
-// معالج الأخطاء العام
 app.use((error, req, res, next) => {
-    console.error('Global error handler:', error);
+    console.error('❌ معالج الأخطاء العام:', error);
     res.status(500).render('error', {
         message: 'حدث خطأ غير متوقع في الخادم',
         title: 'خطأ في الخادم'
@@ -1148,25 +702,25 @@ app.use((error, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
-    console.log(`🚀 Server is running on http://localhost:${PORT}`);
-    console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🗄️  Database: ${process.env.MONGODB_URI || 'mongodb://localhost:27017/chat-app'}`);
+    console.log(`🚀 الخادم يعمل على http://localhost:${PORT}`);
+    console.log(`📱 البيئة: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🗄️  قاعدة البيانات: ${process.env.MONGODB_URI || 'mongodb://localhost:27017/chat-app'}`);
 });
 
 // معالجة إغلاق الخادم بشكل أنيق
 process.on('SIGTERM', () => {
-    console.log('🛑 SIGTERM received, shutting down gracefully');
+    console.log('🛑 استقبال SIGTERM، إغلاق الخادم بشكل أنيق');
     server.close(() => {
-        console.log('✅ Server closed');
+        console.log('✅ تم إغلاق الخادم');
         mongoose.connection.close();
         process.exit(0);
     });
 });
 
 process.on('SIGINT', () => {
-    console.log('🛑 SIGINT received, shutting down gracefully');
+    console.log('🛑 استقبال SIGINT، إغلاق الخادم بشكل أنيق');
     server.close(() => {
-        console.log('✅ Server closed');
+        console.log('✅ تم إغلاق الخادم');
         mongoose.connection.close();
         process.exit(0);
     });
