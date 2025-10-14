@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .sidebar {
+            background: #2c3e50;
+            min-height: 100vh;
+            color: white;
+        }
+        .sidebar .nav-link {
+            color: #bdc3c7;
+            padding: 15px 20px;
+            border-radius: 5px;
+            margin: 5px 0;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            background: #34495e;
+            color: white;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- الشريط الجانبي -->
+            <nav class="col-md-3 col-lg-2 sidebar d-md-block">
+                <div class="position-sticky pt-3">
+                    <div class="text-center mb-4">
+                        <h4><i class="fas fa-cogs me-2"></i>لوحة التحكم</h4>
+                        <p class="text-muted">مرحباً، <%= username %></p>
+                    </div>
+                    
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin">
+                                <i class="fas fa-tachometer-alt me-2"></i>لوحة التحكم
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/admin/users">
+                                <i class="fas fa-users me-2"></i>إدارة المستخدمين
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/messages">
+                                <i class="fas fa-comments me-2"></i>إدارة الرسائل
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/admin/logout">
+                                <i class="fas fa-sign-out-alt me-2"></i>خروج المسؤول
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/">
+                                <i class="fas fa-home me-2"></i>العودة للتطبيق
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- المحتوى الرئيسي -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 py-4">
+                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                    <h1 class="h2"><i class="fas fa-users me-2"></i>إدارة المستخدمين</h1>
+                    <div class="btn-toolbar mb-2 mb-md-0">
+                        <span class="badge bg-primary fs-6">إجمالي المستخدمين: <%= users.length %></span>
+                    </div>
+                </div>
+
+                <!-- جدول المستخدمين -->
+                <div class="card">
+                    <div class="card-body">
+                        <% if (users.length > 0) { %>
+                            <div class="table-responsive">
+                                <table class="table table-striped table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>الصورة</th>
+                                            <th>اسم المستخدم</th>
+                                            <th>آخر ظهور</th>
+                                            <th>تاريخ التسجيل</th>
+                                            <th>الحالة</th>
+                                            <th>الإجراءات</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% users.forEach(user => { %>
+                                            <tr>
+                                                <td>
+                                                    <img src="<%= user.avatarUrl || '/default-avatar.png' %>" 
+                                                         class="rounded-circle user-avatar" 
+                                                         alt="<%= user.username %>">
+                                                </td>
+                                                <td>
+                                                    <strong><%= user.username %></strong>
+                                                    <% if (user._id.toString() === userId) { %>
+                                                        <span class="badge bg-info">أنت</span>
+                                                    <% } %>
+                                                </td>
+                                                <td>
+                                                    <span class="<%= isUserOnline(user.lastSeen) ? 'text-success' : 'text-muted' %>">
+                                                        <i class="fas fa-circle me-1" style="font-size: 0.7rem;"></i>
+                                                        <%= getTimeAgo(user.lastSeen) %>
+                                                    </span>
+                                                </td>
+                                                <td><%= getTimeAgo(user.createdAt) %></td>
+                                                <td>
+                                                    <% if (user.isBanned) { %>
+                                                        <span class="badge bg-danger">محظور</span>
+                                                    <% } else { %>
+                                                        <span class="badge bg-success">نشط</span>
+                                                    <% } %>
+                                                </td>
+                                                <td>
+                                                    <div class="btn-group btn-group-sm">
+                                                        <% if (!user.isBanned) { %>
+                                                            <button class="btn btn-warning btn-ban" 
+                                                                    data-user-id="<%= user._id %>"
+                                                                    data-username="<%= user.username %>"
+                                                                    data-action="ban">
+                                                                <i class="fas fa-ban"></i> حظر
+                                                            </button>
+                                                        <% } else { %>
+                                                            <button class="btn btn-success btn-ban" 
+                                                                    data-user-id="<%= user._id %>"
+                                                                    data-username="<%= user.username %>"
+                                                                    data-action="unban">
+                                                                <i class="fas fa-check"></i> فك الحظر
+                                                            </button>
+                                                        <% } %>
+                                                        
+                                                        <% if (user._id.toString() !== userId) { %>
+                                                            <button class="btn btn-danger btn-delete" 
+                                                                    data-user-id="<%= user._id %>"
+                                                                    data-username="<%= user.username %>">
+                                                                <i class="fas fa-trash"></i> حذف
+                                                            </button>
+                                                        <% } %>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        <% }); %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <% } else { %>
+                            <div class="text-center py-4">
+                                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                                <h5 class="text-muted">لا يوجد مستخدمين</h5>
+                            </div>
+                        <% } %>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal للتأكيد -->
+    <div class="modal fade" id="confirmModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">تأكيد الإجراء</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="modalBody">
+                    <!-- سيتم تعبئته بالجافاسكريبت -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                    <button type="button" class="btn btn-primary" id="confirmAction">تأكيد</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // معالجة حذف المستخدم
+        document.querySelectorAll('.btn-delete').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const userId = this.dataset.userId;
+                const username = this.dataset.username;
+                
+                document.getElementById('modalTitle').textContent = 'حذف المستخدم';
+                document.getElementById('modalBody').innerHTML = `
+                    <p>هل أنت متأكد من أنك تريد حذف المستخدم <strong>${username}</strong>؟</p>
+                    <p class="text-danger">تحذير: هذا الإجراء سيحذف جميع بيانات المستخدم بما في ذلك الرسائل وطلبات الصداقة ولا يمكن التراجع عنه.</p>
+                `;
+                
+                document.getElementById('confirmAction').className = 'btn btn-danger';
+                document.getElementById('confirmAction').innerHTML = '<i class="fas fa-trash"></i> حذف';
+                
+                const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+                confirmModal.show();
+                
+                document.getElementById('confirmAction').onclick = function() {
+                    fetch(`/admin/users/delete/${userId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message);
+                            location.reload();
+                        } else {
+                            alert(data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('حدث خطأ أثناء حذف المستخدم');
+                    })
+                    .finally(() => {
+                        confirmModal.hide();
+                    });
+                };
+            });
+        });
+
+        // معالجة حظر/فك حظر المستخدم
+        document.querySelectorAll('.btn-ban').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const userId = this.dataset.userId;
+                const username = this.dataset.username;
+                const action = this.dataset.action;
+                const isBan = action === 'ban';
+                
+                document.getElementById('modalTitle').textContent = isBan ? 'حظر المستخدم' : 'فك حظر المستخدم';
+                document.getElementById('modalBody').innerHTML = `
+                    <p>هل أنت متأكد من أنك تريد ${isBan ? 'حظر' : 'فك حظر'} المستخدم <strong>${username}</strong>؟</p>
+                    ${isBan ? '<p class="text-warning">المستخدم المحظور لن يتمكن من تسجيل الدخول أو استخدام التطبيق.</p>' : ''}
+                `;
+                
+                document.getElementById('confirmAction').className = isBan ? 'btn btn-warning' : 'btn btn-success';
+                document.getElementById('confirmAction').innerHTML = isBan ? 
+                    '<i class="fas fa-ban"></i> حظر' : 
+                    '<i class="fas fa-check"></i> فك الحظر';
+                
+                const confirmModal = new bootstrap.Modal(document.getElementById('confirmModal'));
+                confirmModal.show();
+                
+                document.getElementById('confirmAction').onclick = function() {
+                    fetch(`/admin/users/ban/${userId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ action })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert(data.message);
+                            location.reload();
+                        } else {
+                            alert(data.message);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('حدث خطأ أثناء تنفيذ الإجراء');
+                    })
+                    .finally(() => {
+                        confirmModal.hide();
+                    });
+                };
+            });
+        });
+    </script>
+</body>
+</html>
