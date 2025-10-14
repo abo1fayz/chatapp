@@ -155,23 +155,25 @@ app.get('/', requireLogin, async (req, res) => {
         .sort({ createdAt: -1 })
         .lean();
 
-        const friendList = friends.map(f => {
-            if (f.requester._id.toString() === req.session.userId.toString()) {
-                return {
-                    _id: f.recipient._id,
-                    username: f.recipient.username,
-                    avatarUrl: f.recipient.avatarUrl,
-                    lastSeen: f.recipient.lastSeen
-                };
-            } else {
-                return {
-                    _id: f.requester._id,
-                    username: f.requester.username,
-                    avatarUrl: f.requester.avatarUrl,
-                    lastSeen: f.requester.lastSeen
-                };
-            }
-        });
+        const friendList = await Promise.all(friends.map(async (f) => {
+            const friend = f.requester._id.toString() === req.session.userId.toString() ? 
+                f.recipient : f.requester;
+
+            // جلب عدد الرسائل غير المقروءة
+            const unreadCount = await Message.countDocuments({
+                userId: friend._id,
+                toUserId: req.session.userId,
+                read: false
+            });
+
+            return {
+                _id: friend._id,
+                username: friend.username,
+                avatarUrl: friend.avatarUrl,
+                lastSeen: friend.lastSeen,
+                unreadCount: unreadCount
+            };
+        }));
 
         res.render('friends', { 
             friends: friendList,
@@ -469,6 +471,62 @@ app.get('/check-session', (req, res) => {
             success: false, 
             message: 'لا يوجد جلسة نشطة'
         });
+    }
+});
+
+// الحصول على عدد الرسائل غير المقروءة
+app.get('/unread-count', requireLogin, async (req, res) => {
+    try {
+        const unreadCount = await Message.countDocuments({
+            toUserId: req.session.userId,
+            read: false
+        });
+
+        res.json({ success: true, unreadCount });
+    } catch (error) {
+        console.error('Error getting unread count:', error);
+        res.json({ success: false, unreadCount: 0 });
+    }
+});
+
+// الحصول على عدد الرسائل غير المقروءة لصديق معين
+app.get('/unread-count/:friendId', requireLogin, async (req, res) => {
+    try {
+        const { friendId } = req.params;
+        
+        const unreadCount = await Message.countDocuments({
+            userId: friendId,
+            toUserId: req.session.userId,
+            read: false
+        });
+
+        res.json({ success: true, unreadCount });
+    } catch (error) {
+        console.error('Error getting friend unread count:', error);
+        res.json({ success: false, unreadCount: 0 });
+    }
+});
+
+// تحديث حالة الرسائل كمقروءة
+app.post('/mark-as-read/:friendId', requireLogin, async (req, res) => {
+    try {
+        const { friendId } = req.params;
+        
+        await Message.updateMany({
+            userId: friendId,
+            toUserId: req.session.userId,
+            read: false
+        }, {
+            $set: { 
+                read: true,
+                readAt: new Date()
+            }
+        });
+
+        res.json({ success: true, message: 'تم تحديث حالة الرسائل' });
+    } catch (error) {
+        console.error('Error marking messages as read:', error);
+        res.json({ success: false, message: 'حدث خطأ' });
     }
 });
 
@@ -1087,6 +1145,18 @@ app.get('/chat-private/:id', requireLogin, async (req, res) => {
             });
         }
 
+        // تحديث الرسائل كمقروءة عند فتح المحادثة
+        await Message.updateMany({
+            userId: friendId,
+            toUserId: req.session.userId,
+            read: false
+        }, {
+            $set: { 
+                read: true,
+                readAt: new Date()
+            }
+        });
+
         // جلب الرسائل
         const messages = await Message.find({
             $or: [
@@ -1181,7 +1251,8 @@ io.on('connection', async (socket) => {
                 username: user.username,
                 avatarUrl: user.avatarUrl,
                 text: data.text.trim(),
-                toUserId: null
+                toUserId: null,
+                read: true // الرسائل العامة تعتبر مقروءة
             };
 
             const message = new Message(messageData);
@@ -1220,7 +1291,8 @@ io.on('connection', async (socket) => {
                 username: user.username,
                 avatarUrl: user.avatarUrl,
                 text: data.text.trim(),
-                toUserId: data.toUserId
+                toUserId: data.toUserId,
+                read: false // الرسائل الخاصة غير مقروءة افتراضياً
             };
 
             const message = new Message(messageData);
@@ -1235,12 +1307,50 @@ io.on('connection', async (socket) => {
                 createdAt: message.createdAt
             };
 
+            // إرسال للمرسل
             socket.emit('private message', messageToSend);
+            
+            // إرسال للمستقبل مع تحديث عدد الرسائل غير المقروءة
             socket.to(data.toUserId).emit('private message', messageToSend);
+            socket.to(data.toUserId).emit('new message notification', {
+                from: user.username,
+                fromId: session.userId,
+                unreadCount: await Message.countDocuments({
+                    toUserId: data.toUserId,
+                    read: false
+                })
+            });
 
         } catch (error) {
             console.error('Error handling private message:', error);
             socket.emit('error', { message: 'Failed to send private message' });
+        }
+    });
+
+    // تحديث حالة القراءة
+    socket.on('mark as read', async (data) => {
+        try {
+            const { friendId } = data;
+            
+            await Message.updateMany({
+                userId: friendId,
+                toUserId: session.userId,
+                read: false
+            }, {
+                $set: { 
+                    read: true,
+                    readAt: new Date()
+                }
+            });
+
+            // إعلام المرسل أن رسائله قد تم قراءتها
+            socket.to(friendId).emit('messages read', {
+                readerId: session.userId,
+                readerName: session.username
+            });
+
+        } catch (error) {
+            console.error('Error marking messages as read:', error);
         }
     });
 
