@@ -19,6 +19,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  isBanned: {
+    type: Boolean,
+    default: false
+  },
   settings: {
     allowFriendRequests: { type: Boolean, default: true },
     showOnlineStatus: { type: Boolean, default: true }
@@ -27,12 +31,10 @@ const userSchema = new mongoose.Schema({
   timestamps: true 
 });
 
-// دالة للحصول على حالة المستخدم
 userSchema.virtual('isOnline').get(function() {
-  return Date.now() - this.lastSeen.getTime() < 5 * 60 * 1000; // 5 دقائق
+  return Date.now() - this.lastSeen.getTime() < 5 * 60 * 1000;
 });
 
-// دالة لتنسيق تاريخ آخر ظهور
 userSchema.virtual('lastSeenFormatted').get(function() {
   const now = new Date();
   const diff = now - this.lastSeen;
