@@ -589,6 +589,8 @@ app.get('/chat', requireLogin, async (req, res) => {
 });
 
 // --- Friends Routes ---
+
+// عرض جميع المستخدمين
 app.get('/users', requireLogin, async (req, res) => {
     try {
         const users = await User.find({ _id: { $ne: req.session.userId } })
@@ -628,6 +630,245 @@ app.get('/users', requireLogin, async (req, res) => {
         console.error('Error loading users:', error);
         res.status(500).render('error', { 
             message: 'حدث خطأ في تحميل المستخدمين',
+            title: 'خطأ'
+        });
+    }
+});
+
+// إرسال طلب صداقة
+app.post('/friend-request/:id', requireLogin, async (req, res) => {
+    try {
+        const recipientId = req.params.id;
+
+        if (recipientId === req.session.userId.toString()) {
+            return res.status(400).json({ error: 'لا يمكن إرسال طلب صداقة لنفسك' });
+        }
+
+        const existingFriendship = await Friendship.findOne({
+            $or: [
+                { requester: req.session.userId, recipient: recipientId },
+                { requester: recipientId, recipient: req.session.userId }
+            ]
+        });
+
+        if (existingFriendship) {
+            return res.status(400).json({ 
+                error: 'تم إرسال طلب مسبقاً أو أنكم أصدقاء بالفعل' 
+            });
+        }
+
+        const friendship = new Friendship({ 
+            requester: req.session.userId, 
+            recipient: recipientId 
+        });
+        await friendship.save();
+
+        res.json({ success: true, message: 'تم إرسال طلب الصداقة بنجاح' });
+        
+    } catch (error) {
+        console.error('Error sending friend request:', error);
+        res.status(500).json({ error: 'حدث خطأ في إرسال طلب الصداقة' });
+    }
+});
+
+// عرض طلبات الصداقة
+app.get('/friend-requests', requireLogin, async (req, res) => {
+    try {
+        const requests = await Friendship.find({ 
+            recipient: req.session.userId, 
+            status: 'pending' 
+        })
+        .populate('requester', 'username avatarUrl createdAt')
+        .sort({ createdAt: -1 })
+        .lean();
+
+        res.render('friend-requests', { 
+            requests,
+            username: req.session.username,
+            avatarUrl: req.session.avatarUrl,
+            title: 'طلبات الصداقة'
+        });
+        
+    } catch (error) {
+        console.error('Error loading friend requests:', error);
+        res.status(500).render('error', { 
+            message: 'حدث خطأ في تحميل طلبات الصداقة',
+            title: 'خطأ'
+        });
+    }
+});
+
+// قبول طلب صداقة
+app.post('/friend-accept/:id', requireLogin, async (req, res) => {
+    try {
+        const requesterId = req.params.id;
+        const friendship = await Friendship.findOne({ 
+            requester: requesterId, 
+            recipient: req.session.userId,
+            status: 'pending'
+        });
+        
+        if (!friendship) {
+            return res.status(404).json({ error: 'الطلب غير موجود' });
+        }
+        
+        friendship.status = 'accepted';
+        await friendship.save();
+
+        res.redirect('/friend-requests');
+        
+    } catch (error) {
+        console.error('Error accepting friend request:', error);
+        res.status(500).json({ error: 'حدث خطأ في قبول طلب الصداقة' });
+    }
+});
+
+// رفض طلب صداقة
+app.get('/friend-reject/:id', requireLogin, async (req, res) => {
+    try {
+        const requesterId = req.params.id;
+        const result = await Friendship.findOneAndDelete({ 
+            requester: requesterId, 
+            recipient: req.session.userId 
+        });
+
+        if (!result) {
+            return res.status(404).json({ error: 'الطلب غير موجود' });
+        }
+
+        res.redirect('/friend-requests');
+        
+    } catch (error) {
+        console.error('Error rejecting friend request:', error);
+        res.status(500).json({ error: 'حدث خطأ في رفض طلب الصداقة' });
+    }
+});
+
+// إلغاء طلب صداقة
+app.post('/friend-cancel/:id', requireLogin, async (req, res) => {
+    try {
+        const recipientId = req.params.id;
+        const result = await Friendship.findOneAndDelete({ 
+            requester: req.session.userId, 
+            recipient: recipientId 
+        });
+
+        if (!result) {
+            return res.status(404).json({ error: 'الطلب غير موجود' });
+        }
+
+        res.json({ success: true, message: 'تم إلغاء طلب الصداقة' });
+        
+    } catch (error) {
+        console.error('Error canceling friend request:', error);
+        res.status(500).json({ error: 'حدث خطأ في إلغاء طلب الصداقة' });
+    }
+});
+
+// عرض الأصدقاء
+app.get('/friends', requireLogin, async (req, res) => {
+    try {
+        const friends = await Friendship.find({
+            $or: [
+                { requester: req.session.userId, status: 'accepted' },
+                { recipient: req.session.userId, status: 'accepted' }
+            ]
+        })
+        .populate('requester', 'username avatarUrl lastSeen')
+        .populate('recipient', 'username avatarUrl lastSeen')
+        .sort({ createdAt: -1 })
+        .lean();
+
+        const friendList = friends.map(f => {
+            if (f.requester._id.toString() === req.session.userId.toString()) {
+                return {
+                    _id: f.recipient._id,
+                    username: f.recipient.username,
+                    avatarUrl: f.recipient.avatarUrl,
+                    lastSeen: f.recipient.lastSeen
+                };
+            } else {
+                return {
+                    _id: f.requester._id,
+                    username: f.requester.username,
+                    avatarUrl: f.requester.avatarUrl,
+                    lastSeen: f.requester.lastSeen
+                };
+            }
+        });
+
+        res.render('friends', { 
+            friends: friendList,
+            username: req.session.username,
+            avatarUrl: req.session.avatarUrl,
+            userId: req.session.userId,
+            title: 'الأصدقاء'
+        });
+        
+    } catch (error) {
+        console.error('Error loading friends:', error);
+        res.status(500).render('error', { 
+            message: 'حدث خطأ في تحميل قائمة الأصدقاء',
+            title: 'خطأ'
+        });
+    }
+});
+
+// الدردشة الخاصة
+app.get('/chat-private/:id', requireLogin, async (req, res) => {
+    try {
+        const friendId = req.params.id;
+        
+        // التحقق من وجود صداقة
+        const friendship = await Friendship.findOne({
+            $or: [
+                { requester: req.session.userId, recipient: friendId, status: 'accepted' },
+                { requester: friendId, recipient: req.session.userId, status: 'accepted' }
+            ]
+        }).populate('requester recipient');
+
+        if (!friendship) {
+            return res.status(403).render('error', { 
+                message: 'لا يمكنك الدردشة مع هذا المستخدم',
+                title: 'خطأ في الصلاحيات'
+            });
+        }
+
+        // جلب الرسائل
+        const messages = await Message.find({
+            $or: [
+                { userId: req.session.userId, toUserId: friendId },
+                { userId: friendId, toUserId: req.session.userId }
+            ]
+        })
+        .populate('userId', 'username avatarUrl')
+        .sort({ createdAt: 1 })
+        .limit(100)
+        .lean();
+
+        const friend = friendship.requester._id.toString() === friendId ? 
+            friendship.requester : friendship.recipient;
+
+        res.render('chat-private', {
+            messages: messages.map(msg => ({
+                ...msg,
+                username: msg.userId.username,
+                avatarUrl: msg.userId.avatarUrl,
+                userId: msg.userId._id.toString()
+            })),
+            friendId,
+            friendUsername: friend.username,
+            friendAvatar: friend.avatarUrl,
+            userId: req.session.userId.toString(),
+            username: req.session.username,
+            avatarUrl: req.session.avatarUrl || '/default-avatar.png',
+            title: `الدردشة مع ${friend.username}`
+        });
+        
+    } catch (error) {
+        console.error('Error loading private chat:', error);
+        res.status(500).render('error', { 
+            message: 'حدث خطأ في تحميل المحادثة',
             title: 'خطأ'
         });
     }
@@ -708,6 +949,59 @@ io.on('connection', async (socket) => {
         }
     });
 
+    // استقبال الرسائل الخاصة
+    socket.on('private message', async (data) => {
+        try {
+            if (!data.text || data.text.trim() === '' || !data.toUserId) {
+                return;
+            }
+
+            const user = await User.findById(session.userId);
+            if (!user) {
+                console.log('User not found for private message');
+                return;
+            }
+
+            const messageData = {
+                userId: session.userId,
+                username: user.username,
+                avatarUrl: user.avatarUrl,
+                text: data.text.trim(),
+                toUserId: data.toUserId
+            };
+
+            const message = new Message(messageData);
+            await message.save();
+
+            console.log(`🔒 رسالة خاصة من ${user.username} إلى ${data.toUserId}: ${data.text.trim()}`);
+
+            // إرسال الرسالة للمستخدم المرسل والمستقبل فقط
+            const messageToSend = {
+                ...messageData,
+                _id: message._id,
+                createdAt: message.createdAt
+            };
+
+            socket.emit('private message', messageToSend);
+            socket.to(data.toUserId).emit('private message', messageToSend);
+
+        } catch (error) {
+            console.error('Error handling private message:', error);
+            socket.emit('error', { message: 'Failed to send private message' });
+        }
+    });
+
+    // تحديث حالة الكتابة
+    socket.on('typing', (data) => {
+        if (data.toUserId) {
+            socket.to(data.toUserId).emit('typing', {
+                userId: session.userId,
+                username: session.username,
+                isTyping: data.isTyping
+            });
+        }
+    });
+
     // عند انقطاع الاتصال
     socket.on('disconnect', async () => {
         console.log(`❌ انقطع الاتصال: ${session.username} - Socket: ${socket.id}`);
@@ -719,6 +1013,11 @@ io.on('connection', async (socket) => {
         } catch (error) {
             console.error('Error updating last seen on disconnect:', error);
         }
+    });
+
+    // معالجة الأخطاء
+    socket.on('error', (error) => {
+        console.error('Socket error:', error);
     });
 });
 
