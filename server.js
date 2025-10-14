@@ -159,12 +159,14 @@ app.get('/', requireLogin, async (req, res) => {
             const friend = f.requester._id.toString() === req.session.userId.toString() ? 
                 f.recipient : f.requester;
 
-            // جلب عدد الرسائل غير المقروءة
+            // جلب عدد الرسائل غير المقروءة - الإصلاح هنا
             const unreadCount = await Message.countDocuments({
                 userId: friend._id,
                 toUserId: req.session.userId,
                 read: false
             });
+
+            console.log(`📊 عدد الرسائل غير المقروءة من ${friend.username}: ${unreadCount}`);
 
             return {
                 _id: friend._id,
@@ -489,16 +491,20 @@ app.get('/unread-count', requireLogin, async (req, res) => {
     }
 });
 
-// الحصول على عدد الرسائل غير المقروءة لصديق معين
+// الحصول على عدد الرسائل غير المقروءة لصديق معين - الإصلاح هنا
 app.get('/unread-count/:friendId', requireLogin, async (req, res) => {
     try {
         const { friendId } = req.params;
+        
+        console.log(`🔍 جلب عدد الرسائل غير المقروءة من ${friendId} إلى ${req.session.userId}`);
         
         const unreadCount = await Message.countDocuments({
             userId: friendId,
             toUserId: req.session.userId,
             read: false
         });
+
+        console.log(`📊 عدد الرسائل غير المقروءة: ${unreadCount}`);
 
         res.json({ success: true, unreadCount });
     } catch (error) {
@@ -512,7 +518,9 @@ app.post('/mark-as-read/:friendId', requireLogin, async (req, res) => {
     try {
         const { friendId } = req.params;
         
-        await Message.updateMany({
+        console.log(`📝 تحديث حالة الرسائل كمقروءة من ${friendId} إلى ${req.session.userId}`);
+        
+        const result = await Message.updateMany({
             userId: friendId,
             toUserId: req.session.userId,
             read: false
@@ -523,7 +531,9 @@ app.post('/mark-as-read/:friendId', requireLogin, async (req, res) => {
             }
         });
 
-        res.json({ success: true, message: 'تم تحديث حالة الرسائل' });
+        console.log(`✅ تم تحديث ${result.modifiedCount} رسالة كمقروءة`);
+
+        res.json({ success: true, message: 'تم تحديث حالة الرسائل', updatedCount: result.modifiedCount });
     } catch (error) {
         console.error('Error marking messages as read:', error);
         res.json({ success: false, message: 'حدث خطأ' });
@@ -1273,7 +1283,7 @@ io.on('connection', async (socket) => {
         }
     });
 
-    // استقبال الرسائل الخاصة
+    // استقبال الرسائل الخاصة - الإصلاح الكامل هنا
     socket.on('private message', async (data) => {
         try {
             if (!data.text || data.text.trim() === '' || !data.toUserId) {
@@ -1300,6 +1310,15 @@ io.on('connection', async (socket) => {
 
             console.log(`🔒 رسالة خاصة من ${user.username} إلى ${data.toUserId}: ${data.text.trim()}`);
 
+            // حساب عدد الرسائل غير المقروءة بشكل صحيح - الإصلاح هنا
+            const unreadCount = await Message.countDocuments({
+                userId: session.userId,
+                toUserId: data.toUserId,
+                read: false
+            });
+
+            console.log(`📊 عدد الرسائل غير المقروءة من ${user.username} إلى ${data.toUserId}: ${unreadCount}`);
+
             // إرسال الرسالة للمستخدم المرسل والمستقبل فقط
             const messageToSend = {
                 ...messageData,
@@ -1312,14 +1331,15 @@ io.on('connection', async (socket) => {
             
             // إرسال للمستقبل مع تحديث عدد الرسائل غير المقروءة
             socket.to(data.toUserId).emit('private message', messageToSend);
+            
+            // إرسال إشعار بعدد الرسائل غير المقروءة للمستقبل
             socket.to(data.toUserId).emit('new message notification', {
                 from: user.username,
                 fromId: session.userId,
-                unreadCount: await Message.countDocuments({
-                    toUserId: data.toUserId,
-                    read: false
-                })
+                unreadCount: unreadCount
             });
+
+            console.log(`📨 تم إرسال إشعار إلى ${data.toUserId} بعدد الرسائل غير المقروءة: ${unreadCount}`);
 
         } catch (error) {
             console.error('Error handling private message:', error);
