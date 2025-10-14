@@ -704,6 +704,7 @@
         const userId = '<%= typeof userId !== "undefined" ? userId : "" %>';
         if (userId) {
             localStorage.setItem('userId', userId);
+            console.log('✅ User ID saved:', userId);
         }
 
         // البحث في الوقت الحقيقي
@@ -796,6 +797,8 @@
 
         // استقبال إشعارات جديدة من السيرفر
         socket.on('new message notification', (data) => {
+            console.log('📩 استقبال إشعار رسالة جديدة:', data);
+            
             // تحديث عدد الرسائل غير المقروءة للصديق المعين
             const friendItem = document.querySelector(`.friend-item[data-friend-id="${data.fromId}"]`);
             if (friendItem) {
@@ -806,11 +809,15 @@
                 
                 // تحديث العدد الإجمالي للإشعارات
                 updateTotalNotifications();
+            } else {
+                console.warn('⚠️ لم يتم العثور على صديق بالمعرف:', data.fromId);
             }
         });
 
         // تحديث عدد الرسائل غير المقروءة لصديق معين
         function updateFriendUnreadCount(friendItem, unreadCount, friendId) {
+            console.log(`🔄 تحديث عدد الرسائل غير المقروءة لـ ${friendId}: ${unreadCount}`);
+            
             const chatIndicator = friendItem.querySelector('.chat-indicator');
             const existingBadge = chatIndicator.querySelector('.unread-badge');
             const friendInfo = friendItem.querySelector('.friend-info');
@@ -878,6 +885,8 @@
                 
                 friendsBadge.textContent = totalUnread > 99 ? '99+' : totalUnread;
                 friendsBadge.style.display = 'flex';
+                
+                console.log(`🔔 العدد الإجمالي للرسائل غير المقروءة: ${totalUnread}`);
             } else {
                 notificationBadge.style.display = 'none';
                 friendsBadge.style.display = 'none';
@@ -885,13 +894,21 @@
         }
 
         // تحديث العدد الإجمالي للإشعارات عند التحميل
-        document.addEventListener('DOMContentLoaded', updateTotalNotifications);
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🚀 صفحة الأصدقاء جاهزة');
+            updateTotalNotifications();
+            
+            // تحديث عدد الرسائل غير المقروءة فور تحميل الصفحة
+            updateUnreadCounts();
+        });
 
         // تحديث حالة القراءة عند زيارة صفحة الدردشة
         document.querySelectorAll('.chat-indicator').forEach(link => {
             link.addEventListener('click', function(e) {
                 const friendItem = this.closest('.friend-item');
                 const friendId = friendItem.getAttribute('data-friend-id');
+                
+                console.log(`📝 تحديث حالة القراءة للصديق: ${friendId}`);
                 
                 // تحديث حالة الرسائل كمقروءة
                 fetch(`/mark-as-read/${friendId}`, {
@@ -903,21 +920,27 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
+                        console.log(`✅ تم تحديث حالة الرسائل كمقروءة لـ ${friendId}`);
+                        
                         // إزالة شارة الرسائل غير المقروءة
                         updateFriendUnreadCount(friendItem, 0, friendId);
                         
                         // تحديث العدد الإجمالي للإشعارات
                         updateTotalNotifications();
+                    } else {
+                        console.error('❌ فشل في تحديث حالة القراءة:', data.message);
                     }
                 })
                 .catch(error => {
-                    console.error('Error marking messages as read:', error);
+                    console.error('❌ خطأ في تحديث حالة القراءة:', error);
                 });
             });
         });
 
         // تحديث عدد الرسائل غير المقروءة بشكل دوري
         function updateUnreadCounts() {
+            console.log('🔄 تحديث عدد الرسائل غير المقروءة...');
+            
             document.querySelectorAll('.friend-item').forEach(item => {
                 const friendId = item.getAttribute('data-friend-id');
                 
@@ -926,23 +949,23 @@
                     .then(data => {
                         if (data.success) {
                             const unreadCount = data.unreadCount;
+                            console.log(`📊 عدد الرسائل غير المقروءة لـ ${friendId}: ${unreadCount}`);
                             updateFriendUnreadCount(item, unreadCount, friendId);
                             
                             // تحديث العدد الإجمالي للإشعارات
                             updateTotalNotifications();
+                        } else {
+                            console.error('❌ فشل في جلب عدد الرسائل غير المقروءة:', data.message);
                         }
                     })
                     .catch(error => {
-                        console.error('Error updating unread count:', error);
+                        console.error('❌ خطأ في جلب عدد الرسائل غير المقروءة:', error);
                     });
             });
         }
 
         // تحديث عدد الرسائل غير المقروءة كل 30 ثانية
         setInterval(updateUnreadCounts, 30000);
-
-        // تحديث فوري عند تحميل الصفحة
-        document.addEventListener('DOMContentLoaded', updateUnreadCounts);
 
         // تحسين تجربة المستخدم على الأجهزة التي تعمل باللمس
         document.addEventListener('touchstart', function() {}, {passive: true});
@@ -966,6 +989,45 @@
             }
         `;
         document.head.appendChild(style);
+
+        // فحص حالة الاتصال بالسوكيت
+        socket.on('connect', () => {
+            console.log('✅ متصل بالسيرفر عبر Socket.IO');
+        });
+
+        socket.on('disconnect', () => {
+            console.log('❌ انقطع الاتصال بالسيرفر');
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('❌ خطأ في الاتصال بالسيرفر:', error);
+        });
+
+        // استقبال رسالة خاصة مباشرة
+        socket.on('private message', (data) => {
+            console.log('📩 استقبال رسالة خاصة مباشرة:', data);
+            
+            // تحديث عدد الرسائل غير المقروءة للصديق المرسل
+            const friendItem = document.querySelector(`.friend-item[data-friend-id="${data.userId}"]`);
+            if (friendItem) {
+                // زيادة عدد الرسائل غير المقروءة بمقدار 1
+                const existingBadge = friendItem.querySelector('.unread-badge');
+                let currentCount = 0;
+                
+                if (existingBadge) {
+                    currentCount = parseInt(existingBadge.textContent) || 0;
+                }
+                
+                const newCount = currentCount + 1;
+                updateFriendUnreadCount(friendItem, newCount, data.userId);
+                
+                // عرض إشعار بالرسالة الجديدة
+                showNotification('رسالة جديدة', `لديك رسالة جديدة من ${data.username}`, 'message', data.userId);
+                
+                // تحديث العدد الإجمالي للإشعارات
+                updateTotalNotifications();
+            }
+        });
     </script>
 </body>
 </html>
