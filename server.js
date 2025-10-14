@@ -584,6 +584,7 @@ app.get('/admin/users', requireAdmin, async (req, res) => {
             users,
             username: req.session.username,
             avatarUrl: req.session.avatarUrl,
+            userId: req.session.userId,
             title: 'إدارة المستخدمين'
         });
         
