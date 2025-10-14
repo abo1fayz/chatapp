@@ -2,114 +2,246 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>البروفايل الشخصي</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --primary-color: #075e54;
+            --secondary-color: #128c7e;
+            --accent-color: #25d366;
+            --danger-color: #dc3545;
+            --background-color: #f0f0f0;
+            --surface-color: #ffffff;
+            --text-primary: #2d3748;
+            --text-secondary: #718096;
+            --border-color: #e2e8f0;
+            --shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: #f0f0f0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Segoe UI Emoji', 'Segoe UI Symbol', sans-serif;
+            background: var(--background-color);
             direction: rtl;
-            height: 100vh;
-            color: #333;
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
         }
 
         .app-container {
-            max-width: 100%;
-            height: 100vh;
-            background: white;
+            min-height: 100vh;
+            background: var(--surface-color);
             display: flex;
             flex-direction: column;
+            position: relative;
         }
 
-        /* الهيدر */
+        /* الهيدر المحسّن */
         .header {
-            background: #075e54;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
             color: white;
-            padding: 15px 20px;
+            padding: 12px 16px;
             display: flex;
             align-items: center;
-            gap: 15px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            gap: 12px;
             position: sticky;
             top: 0;
             z-index: 100;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
         }
 
         .back-btn {
             color: white;
             text-decoration: none;
-            font-size: 20px;
-            padding: 5px;
+            font-size: 24px;
+            padding: 8px;
+            border-radius: 50%;
+            transition: background-color 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+        }
+
+        .back-btn:active {
+            background: rgba(255, 255, 255, 0.2);
         }
 
         .header-title {
             flex: 1;
             font-size: 18px;
-            font-weight: 500;
+            font-weight: 600;
+            letter-spacing: -0.3px;
         }
 
         /* محتوى البروفايل */
         .profile-content {
             flex: 1;
             overflow-y: auto;
-            background: #f0f0f0;
+            padding-bottom: 80px; /* مساحة للتنقل السفلي */
+            -webkit-overflow-scrolling: touch;
         }
 
         /* قسم الصورة والمعلومات الأساسية */
         .profile-header {
-            background: white;
-            padding: 30px 20px;
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 32px 20px 24px;
             text-align: center;
-            border-bottom: 1px solid #e0e0e0;
+            position: relative;
+        }
+
+        .profile-avatar-container {
+            position: relative;
+            display: inline-block;
+            margin-bottom: 16px;
         }
 
         .profile-avatar {
-            width: 120px;
-            height: 120px;
+            width: 100px;
+            height: 100px;
             border-radius: 50%;
             object-fit: cover;
-            border: 4px solid #075e54;
-            margin-bottom: 15px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s ease;
+        }
+
+        .avatar-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.6);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .profile-avatar-container:active .avatar-overlay {
+            opacity: 1;
         }
 
         .profile-name {
-            font-size: 22px;
-            font-weight: 500;
-            color: #075e54;
-            margin-bottom: 5px;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            letter-spacing: -0.3px;
         }
 
         .profile-status {
-            color: #666;
             font-size: 14px;
+            opacity: 0.9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
 
-        /* قسم المعلومات */
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* التبويبات المحسنة */
+        .tabs {
+            display: flex;
+            background: var(--surface-color);
+            border-bottom: 1px solid var(--border-color);
+            padding: 0 16px;
+            position: sticky;
+            top: 64px;
+            z-index: 90;
+            background: var(--surface-color);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+        }
+
+        .tab {
+            flex: 1;
+            padding: 16px 12px;
+            text-align: center;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-weight: 500;
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+            font-size: 14px;
+            position: relative;
+        }
+
+        .tab.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+        }
+
+        .tab:active {
+            background: rgba(7, 94, 84, 0.05);
+        }
+
+        /* محتوى التبويبات */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* أقسام المعلومات */
         .info-section {
-            background: white;
-            margin: 10px 0;
-            padding: 0 15px;
+            background: var(--surface-color);
+            margin: 8px 0;
+            border-radius: 0;
         }
 
         .section-title {
             font-size: 16px;
-            color: #075e54;
-            padding: 15px 0;
-            border-bottom: 1px solid #f0f0f0;
-            font-weight: 500;
+            color: var(--primary-color);
+            padding: 20px 16px 12px;
+            font-weight: 600;
+            background: var(--surface-color);
         }
 
         .info-item {
-            padding: 15px 0;
-            border-bottom: 1px solid #f0f0f0;
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
+            transition: background-color 0.2s ease;
+        }
+
+        .info-item:active {
+            background: rgba(7, 94, 84, 0.03);
         }
 
         .info-item:last-child {
@@ -118,64 +250,73 @@
 
         .info-label {
             font-size: 14px;
-            color: #075e54;
-            margin-bottom: 5px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
             font-weight: 500;
         }
 
         .info-value {
             font-size: 16px;
-            color: #333;
+            color: var(--text-primary);
+            font-weight: 500;
         }
 
-        /* الأزرار */
+        /* الأزرار المحسنة */
         .btn {
             display: block;
-            width: 100%;
-            padding: 15px;
+            width: calc(100% - 32px);
+            padding: 16px;
             border: none;
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 16px;
-            font-weight: 500;
+            font-weight: 600;
             text-align: center;
             text-decoration: none;
-            margin: 10px 0;
+            margin: 16px;
             cursor: pointer;
             transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn:active {
+            transform: scale(0.98);
         }
 
         .btn-primary {
-            background: #075e54;
+            background: var(--primary-color);
             color: white;
+            box-shadow: 0 4px 15px rgba(7, 94, 84, 0.3);
         }
 
-        .btn-primary:hover {
+        .btn-primary:active {
             background: #054c43;
         }
 
         .btn-secondary {
-            background: #25d366;
+            background: var(--accent-color);
             color: white;
+            box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
         }
 
-        .btn-secondary:hover {
+        .btn-secondary:active {
             background: #1ea952;
         }
 
         .btn-danger {
-            background: #dc3545;
+            background: var(--danger-color);
             color: white;
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
         }
 
-        .btn-danger:hover {
+        .btn-danger:active {
             background: #c82333;
         }
 
-        /* النماذج */
+        /* النماذج المحسنة */
         .form-container {
-            background: white;
-            margin: 10px 0;
-            padding: 15px;
+            background: var(--surface-color);
+            padding: 16px;
         }
 
         .form-group {
@@ -185,30 +326,32 @@
         .form-group label {
             display: block;
             margin-bottom: 8px;
-            font-weight: 500;
-            color: #075e54;
+            font-weight: 600;
+            color: var(--primary-color);
             font-size: 14px;
         }
 
-        .form-group input {
+        .form-input {
             width: 100%;
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            border-radius: 8px;
+            padding: 16px;
+            border: 2px solid var(--border-color);
+            border-radius: 12px;
             font-size: 16px;
-            background: #f8f9fa;
+            background: var(--surface-color);
+            transition: all 0.3s ease;
+            font-family: inherit;
         }
 
-        .form-group input:focus {
+        .form-input:focus {
             outline: none;
-            border-color: #075e54;
-            background: white;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(7, 94, 84, 0.1);
         }
 
-        /* ملف الإدخال */
+        /* ملف الإدخال المحسن */
         .file-input-container {
             position: relative;
-            margin: 15px 0;
+            margin: 20px 0;
         }
 
         .file-input-label {
@@ -216,19 +359,21 @@
             align-items: center;
             justify-content: center;
             gap: 10px;
-            padding: 12px 20px;
-            background: #f8f9fa;
-            border: 2px dashed #075e54;
-            border-radius: 8px;
-            color: #075e54;
-            font-weight: 500;
+            padding: 16px;
+            background: var(--surface-color);
+            border: 2px dashed var(--primary-color);
+            border-radius: 12px;
+            color: var(--primary-color);
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
+            text-align: center;
         }
 
-        .file-input-label:hover {
-            background: #075e54;
+        .file-input-label:active {
+            background: var(--primary-color);
             color: white;
+            transform: scale(0.98);
         }
 
         input[type="file"] {
@@ -239,12 +384,18 @@
 
         /* الرسائل */
         .message {
-            padding: 12px 15px;
-            border-radius: 8px;
-            margin: 10px 15px;
+            padding: 16px;
+            border-radius: 12px;
+            margin: 16px;
             text-align: center;
-            font-weight: 500;
+            font-weight: 600;
             font-size: 14px;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(-10px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
         }
 
         .success {
@@ -259,50 +410,21 @@
             border: 1px solid #f5c6cb;
         }
 
-        /* التبويبات */
-        .tabs {
-            display: flex;
-            background: white;
-            border-bottom: 1px solid #e0e0e0;
-        }
-
-        .tab {
-            flex: 1;
-            padding: 15px;
-            text-align: center;
-            border-bottom: 3px solid transparent;
-            cursor: pointer;
-            font-weight: 500;
-            color: #666;
-            transition: all 0.3s ease;
-        }
-
-        .tab.active {
-            color: #075e54;
-            border-bottom-color: #075e54;
-        }
-
-        .tab-content {
-            display: none;
-            padding: 15px;
-        }
-
-        .tab-content.active {
-            display: block;
-        }
-
-        /* التنقل السفلي */
+        /* التنقل السفلي المحسن */
         .bottom-nav {
             position: fixed;
             bottom: 0;
             left: 0;
             right: 0;
-            background: white;
+            background: var(--surface-color);
             display: flex;
             justify-content: space-around;
-            padding: 10px 0;
-            border-top: 1px solid #e0e0e0;
-            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            padding: 12px 0;
+            border-top: 1px solid var(--border-color);
+            box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 1000;
         }
 
         .nav-item {
@@ -310,146 +432,135 @@
             flex-direction: column;
             align-items: center;
             text-decoration: none;
-            color: #666;
-            font-size: 12px;
-            padding: 5px;
+            color: var(--text-secondary);
+            font-size: 11px;
+            padding: 8px;
+            flex: 1;
+            transition: all 0.3s ease;
+            border-radius: 12px;
+            margin: 0 4px;
+        }
+
+        .nav-item:active {
+            background: rgba(7, 94, 84, 0.1);
+            transform: scale(0.95);
         }
 
         .nav-item.active {
-            color: #075e54;
+            color: var(--primary-color);
         }
 
         .nav-icon {
-            font-size: 20px;
-            margin-bottom: 3px;
+            font-size: 22px;
+            margin-bottom: 4px;
+            transition: transform 0.3s ease;
         }
 
-        /* التجاوب مع الشاشات الصغيرة */
-        @media (max-width: 480px) {
-            .header {
-                padding: 12px 15px;
-            }
-
-            .profile-header {
-                padding: 20px 15px;
-            }
-
-            .profile-avatar {
-                width: 100px;
-                height: 100px;
-            }
-
-            .profile-name {
-                font-size: 20px;
-            }
-
-            .info-section {
-                margin: 8px 0;
-                padding: 0 12px;
-            }
-
-            .form-container {
-                margin: 8px 0;
-                padding: 12px;
-            }
-
-            .btn {
-                padding: 12px;
-                font-size: 15px;
-            }
+        .nav-item.active .nav-icon {
+            transform: scale(1.1);
         }
 
-        @media (max-width: 360px) {
-            .profile-avatar {
-                width: 80px;
-                height: 80px;
-            }
-
-            .profile-name {
-                font-size: 18px;
-            }
-
-            .header-title {
-                font-size: 16px;
-            }
+        .nav-text {
+            font-weight: 500;
+            font-size: 11px;
         }
 
-        /* تحسينات للشاشات الكبيرة */
-        @media (min-width: 768px) {
-            .app-container {
-                max-width: 500px;
-                margin: 0 auto;
-                height: 90vh;
-                margin-top: 5vh;
-                border-radius: 15px;
-                overflow: hidden;
-                box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            }
-
-            .bottom-nav {
-                border-radius: 0 0 15px 15px;
-            }
-        }
-
-        /* تأثيرات للصورة */
-        .avatar-container {
-            position: relative;
-            display: inline-block;
-        }
-
-        .avatar-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.5);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-            color: white;
-            font-size: 14px;
-        }
-
-        .avatar-container:hover .avatar-overlay {
-            opacity: 1;
-        }
-
-        /* شريط التمرير */
+        /* شريط التمرير المحسن */
         .profile-content::-webkit-scrollbar {
             width: 4px;
         }
 
         .profile-content::-webkit-scrollbar-track {
-            background: #f1f1f1;
+            background: transparent;
         }
 
         .profile-content::-webkit-scrollbar-thumb {
-            background: #075e54;
+            background: var(--primary-color);
             border-radius: 2px;
         }
 
-        /* تحسينات للوضع الأفقي */
-        @media (max-height: 600px) {
-            .profile-header {
-                padding: 20px 15px;
-            }
-
+        /* تحسينات للأجهزة الصغيرة جداً */
+        @media (max-width: 320px) {
             .profile-avatar {
                 width: 80px;
                 height: 80px;
             }
+            
+            .profile-name {
+                font-size: 18px;
+            }
+            
+            .header-title {
+                font-size: 16px;
+            }
+            
+            .tab {
+                padding: 14px 8px;
+                font-size: 13px;
+            }
+        }
+
+        /* تحسينات للأجهزة الكبيرة */
+        @media (min-width: 768px) {
+            .app-container {
+                max-width: 500px;
+                margin: 0 auto;
+                min-height: 90vh;
+                margin-top: 5vh;
+                border-radius: 20px;
+                overflow: hidden;
+                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            }
+            
+            .bottom-nav {
+                border-radius: 0 0 20px 20px;
+            }
+        }
+
+        /* تحسينات للوضع الأفقي */
+        @media (max-height: 600px) and (orientation: landscape) {
+            .profile-header {
+                padding: 20px 16px;
+            }
+            
+            .profile-avatar {
+                width: 70px;
+                height: 70px;
+            }
+            
+            .tabs {
+                top: 56px;
+            }
+        }
+
+        /* تأثيرات اللمس المحسنة */
+        .touch-feedback {
+            transition: all 0.2s ease;
+        }
+
+        .touch-feedback:active {
+            transform: scale(0.95);
+        }
+
+        /* منع التحديد على العناصر التفاعلية */
+        .no-select {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        /* تحسين أداء الصور */
+        img {
+            content-visibility: auto;
         }
     </style>
 </head>
 <body>
     <div class="app-container">
-        <!-- الهيدر -->
+        <!-- الهيدر المحسّن -->
         <div class="header">
-            <a href="/chat" class="back-btn">←</a>
+            <a href="/chat" class="back-btn no-select">←</a>
             <div class="header-title">البروفايل الشخصي</div>
         </div>
 
@@ -466,30 +577,44 @@
 
             <!-- الصورة والمعلومات الأساسية -->
             <div class="profile-header">
-                <div class="avatar-container">
-                    <img src="<%= user.avatarUrl || '/default-avatar.png' %>" alt="صورة البروفايل" class="profile-avatar">
-                    <div class="avatar-overlay">تغيير الصورة</div>
+                <div class="profile-avatar-container touch-feedback">
+                    <img src="<%= user.avatarUrl || '/default-avatar.png' %>" 
+                         alt="صورة البروفايل" 
+                         class="profile-avatar"
+                         onerror="this.src='/default-avatar.png'">
+                    <div class="avatar-overlay no-select">
+                        تغيير<br>الصورة
+                    </div>
                 </div>
                 <div class="profile-name"><%= user.username %></div>
-                <div class="profile-status">متصل الآن</div>
+                <div class="profile-status">
+                    <div class="status-dot"></div>
+                    <span>متصل الآن</span>
+                </div>
             </div>
 
-            <!-- التبويبات -->
+            <!-- التبويبات المحسنة -->
             <div class="tabs">
-                <div class="tab active" onclick="switchTab('info')">المعلومات</div>
-                <div class="tab" onclick="switchTab('edit')">تعديل البيانات</div>
-                <div class="tab" onclick="switchTab('password')">كلمة السر</div>
+                <div class="tab active no-select" onclick="switchTab('info')">
+                    المعلومات
+                </div>
+                <div class="tab no-select" onclick="switchTab('edit')">
+                    التعديل
+                </div>
+                <div class="tab no-select" onclick="switchTab('password')">
+                    كلمة السر
+                </div>
             </div>
 
             <!-- تبويب المعلومات -->
             <div class="tab-content active" id="info-tab">
                 <div class="info-section">
                     <div class="section-title">معلومات الحساب</div>
-                    <div class="info-item">
+                    <div class="info-item touch-feedback">
                         <div class="info-label">اسم المستخدم</div>
                         <div class="info-value"><%= user.username %></div>
                     </div>
-                    <div class="info-item">
+                    <div class="info-item touch-feedback">
                         <div class="info-label">تاريخ الانضمام</div>
                         <div class="info-value">
                             <%= new Date(user.createdAt).toLocaleDateString('ar-SA', { 
@@ -499,27 +624,27 @@
                             }) %>
                         </div>
                     </div>
-                    <div class="info-item">
+                    <div class="info-item touch-feedback">
                         <div class="info-label">معرف المستخدم</div>
-                        <div class="info-value" style="font-family: monospace; font-size: 12px; color: #666;">
-                            <%= user._id %>
+                        <div class="info-value" style="font-family: monospace; font-size: 12px; color: var(--text-secondary);">
+                            <%= user._id.toString().substring(0, 8) %>...
                         </div>
                     </div>
                 </div>
 
                 <div class="info-section">
                     <div class="section-title">الإحصائيات</div>
-                    <div class="info-item">
-                        <div class="info-label">الأصدقاء</div>
-                        <div class="info-value">0 صديق</div>
+                    <div class="info-item touch-feedback">
+                        <div class="info-label">عدد الأصدقاء</div>
+                        <div class="info-value"><%= stats.friendsCount || 0 %> صديق</div>
                     </div>
-                    <div class="info-item">
-                        <div class="info-label">المحادثات النشطة</div>
-                        <div class="info-value">0 محادثة</div>
+                    <div class="info-item touch-feedback">
+                        <div class="info-label">الرسائل المرسلة</div>
+                        <div class="info-value"><%= stats.messagesCount || 0 %> رسالة</div>
                     </div>
                 </div>
 
-                <a href="/logout" class="btn btn-danger" style="margin: 20px 15px;">
+                <a href="/logout" class="btn btn-danger touch-feedback">
                     🚪 تسجيل الخروج
                 </a>
             </div>
@@ -531,19 +656,22 @@
                         <div class="form-group">
                             <label for="username">اسم المستخدم:</label>
                             <input type="text" id="username" name="username" value="<%= user.username %>" 
+                                   class="form-input"
                                    placeholder="اسم المستخدم الجديد" required>
                         </div>
 
                         <div class="form-group">
                             <div class="file-input-container">
-                                <label for="avatarInput" class="file-input-label">
+                                <label for="avatarInput" class="file-input-label touch-feedback no-select">
                                     📸 تغيير الصورة الشخصية
                                 </label>
                                 <input type="file" name="avatar" accept="image/*" id="avatarInput">
                             </div>
                         </div>
 
-                        <button type="submit" class="btn btn-primary">💾 حفظ التغييرات</button>
+                        <button type="submit" class="btn btn-primary touch-feedback">
+                            💾 حفظ التغييرات
+                        </button>
                     </form>
                 </div>
             </div>
@@ -559,39 +687,43 @@
                         <div class="form-group">
                             <label for="currentPassword">كلمة السر الحالية:</label>
                             <input type="password" id="currentPassword" name="currentPassword" 
+                                   class="form-input"
                                    placeholder="أدخل كلمة السر الحالية" required>
                         </div>
 
                         <div class="form-group">
                             <label for="newPassword">كلمة السر الجديدة:</label>
                             <input type="password" id="newPassword" name="newPassword" 
+                                   class="form-input"
                                    placeholder="كلمة السر الجديدة (4 أحرف على الأقل)" 
                                    minlength="4" required>
                         </div>
 
-                        <button type="submit" class="btn btn-secondary">🔐 تغيير كلمة السر</button>
+                        <button type="submit" class="btn btn-secondary touch-feedback">
+                            🔐 تغيير كلمة السر
+                        </button>
                     </form>
                 </div>
             </div>
         </div>
 
-        <!-- التنقل السفلي -->
+        <!-- التنقل السفلي المحسن -->
         <div class="bottom-nav">
-            <a href="/chat" class="nav-item">
+            <a href="/chat" class="nav-item touch-feedback">
                 <span class="nav-icon">💬</span>
-                <span>الدردشة</span>
+                <span class="nav-text">الدردشة</span>
             </a>
-            <a href="/friends" class="nav-item">
+            <a href="/friends" class="nav-item touch-feedback">
                 <span class="nav-icon">👥</span>
-                <span>الأصدقاء</span>
+                <span class="nav-text">الأصدقاء</span>
             </a>
-            <a href="/users" class="nav-item">
+            <a href="/users" class="nav-item touch-feedback">
                 <span class="nav-icon">🔍</span>
-                <span>المستخدمون</span>
+                <span class="nav-text">المستخدمون</span>
             </a>
-            <a href="/profile" class="nav-item active">
+            <a href="/profile" class="nav-item active touch-feedback">
                 <span class="nav-icon">👤</span>
-                <span>البروفايل</span>
+                <span class="nav-text">البروفايل</span>
             </a>
         </div>
     </div>
@@ -613,7 +745,13 @@
             document.getElementById(tabName + '-tab').classList.add('active');
             
             // تفعيل التبويب المطلوب
-            event.target.classList.add('active');
+            event.currentTarget.classList.add('active');
+            
+            // إضافة تأثير الاهتزاز
+            event.currentTarget.style.transform = 'scale(0.95)';
+            setTimeout(() => {
+                event.currentTarget.style.transform = 'scale(1)';
+            }, 150);
         }
 
         // معاينة الصورة قبل الرفع
@@ -629,6 +767,13 @@
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     document.querySelector('.profile-avatar').src = e.target.result;
+                    
+                    // تأثير التغيير
+                    const avatar = document.querySelector('.profile-avatar');
+                    avatar.style.transform = 'scale(1.1)';
+                    setTimeout(() => {
+                        avatar.style.transform = 'scale(1)';
+                    }, 200);
                 }
                 reader.readAsDataURL(file);
             }
@@ -640,48 +785,67 @@
             localStorage.setItem('userId', userId);
         }
 
-        // إظهار/إخفاء كلمة السر
-        function togglePassword(inputId) {
-            const input = document.getElementById(inputId);
-            if (input.type === 'password') {
-                input.type = 'text';
-            } else {
-                input.type = 'password';
-            }
-        }
+        // تحسين تجربة اللمس
+        document.addEventListener('touchstart', function() {}, { passive: true });
 
-        // تحسين تجربة المستخدم على الأجهزة التي تعمل باللمس
-        document.addEventListener('touchstart', function() {}, {passive: true});
-
-        // منع التكبير على iOS
-        document.addEventListener('touchmove', function(e) {
-            if (e.scale !== 1) {
-                e.preventDefault();
+        // منع التكبير المزدوج
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function (event) {
+            const now = (new Date()).getTime();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
             }
-        }, { passive: false });
+            lastTouchEnd = now;
+        }, false);
 
-        // تحسين الأداء على الهواتف
-        let lastTap = 0;
-        document.addEventListener('touchend', function(e) {
-            const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTap;
-            if (tapLength < 500 && tapLength > 0) {
-                e.preventDefault();
-            }
-            lastTap = currentTime;
+        // تحسين أداء التمرير
+        let scrollTimer;
+        document.querySelector('.profile-content').addEventListener('scroll', function() {
+            clearTimeout(scrollTimer);
+            this.classList.add('scrolling');
+            scrollTimer = setTimeout(() => {
+                this.classList.remove('scrolling');
+            }, 100);
         });
 
-        // التركيز على حقل الإدخال عند فتح التبويب
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', function() {
-                setTimeout(() => {
-                    const inputs = document.querySelectorAll('.tab-content.active input[type="text"], .tab-content.active input[type="password"]');
-                    if (inputs.length > 0) {
-                        inputs[0].focus();
-                    }
-                }, 300);
+        // إضافة تأثيرات اللمس للعناصر
+        document.querySelectorAll('.touch-feedback').forEach(element => {
+            element.addEventListener('touchstart', function() {
+                this.style.transition = 'transform 0.1s ease';
+            });
+            
+            element.addEventListener('touchend', function() {
+                this.style.transition = 'all 0.3s ease';
             });
         });
+
+        // تحميل سريع للصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            document.body.style.opacity = '0';
+            document.body.style.transition = 'opacity 0.3s ease';
+            
+            setTimeout(() => {
+                document.body.style.opacity = '1';
+            }, 50);
+        });
+
+        // إدارة حالة الكتابة في الحقول
+        document.querySelectorAll('.form-input').forEach(input => {
+            input.addEventListener('focus', function() {
+                this.parentElement.classList.add('focused');
+            });
+            
+            input.addEventListener('blur', function() {
+                this.parentElement.classList.remove('focused');
+            });
+        });
+
+        // تحسين الأداء على iOS
+        if (navigator.userAgent.match(/iPhone|iPad|iPod/i)) {
+            document.querySelectorAll('input, textarea, select').forEach(element => {
+                element.style.fontSize = '16px'; // منع التكبير في iOS
+            });
+        }
     </script>
 </body>
 </html>
